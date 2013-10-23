@@ -255,8 +255,8 @@ function scan($scanClause) {
     while ((($row = $result->fetch_row()) !== NULL) && 
            ($position < $maximumTerms + $startPosition)) {
         array_push($terms, array(
-            'value' => $row[1],
-            'displayTerm' => decodecharrefs($row[0]),
+            'value' => decodecharrefs($row[0]),
+//            'displayTerm' => ???,
             'position' => ++$position,
             ));
     }
