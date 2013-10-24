@@ -5,83 +5,35 @@
  * This script is responsible for handling FCS requests for language profile data. 
  * 
  * @uses $dbConfigfile
- * @uses $operation
- * @uses $query
- * @uses $version
- * @uses $scanClause
- * @uses responseTemplate
- * @uses responseTemplateFcs
+ * @uses $sru_fcs_params
+ * @uses $responseTemplate
+ * @uses $responseTemplateFcs
  * @package mysqlonsru
  */
-error_reporting(E_ALL);
-
- //load configuration
- require "../utils-php/config.php";
-
- if (isset($_GET['x-type']) && trim($_GET['x-type']) == "fcs") {
-    $responseTemplate = $responseTemplateFcs;
-}
-
-function db_connect() {
-    global $server;
-    global $user;
-    global $password;
-    global $database;
-    global $dbConfigFile;
-    
-     //load database and user data
-    require_once $dbConfigFile;
- 
-    $db = new mysqli($server, $user, $password, $database);
-    return $db;
-}
+//error_reporting(E_ALL);
 
 /**
- * Generates a diagnostics response
- * 
- * @global type $scanDiagnosticsTemplate
- * @global type $version
- * @global type $vlibPath
- * @param type $dgId
- * @param type $dgDetails
+ * Load configuration and common functions
  */
-function diagnostics($dgId, $dgDetails)
- {
-    global $scanDiagnosticsTemplate;
-    global $version;
-    global $vlibPath;
+require_once "common.php";
 
-    //TODO: this needs to be based on diagnostics-list:
-    //http://www.loc.gov/standards/sru/resources/diagnostics-list.html
-    $diagnosticMessage = "Error";
-    $diagnosticId = $dgId;
-    $diagnosticDetails = $dgDetails;
+// TODO: nachfragen.
+// if (isset($_GET['x-type']) && trim($_GET['x-type']) == "fcs") {
+//    $responseTemplate = $responseTemplateFcs;
+//}
 
-    require_once $vlibPath;
-
-   	$tmpl = new vlibTemplate($scanDiagnosticsTemplate);
-
-   	$tmpl->setvar('version', $version);
-   	$tmpl->setvar('diagnosticId', $diagnosticId);
-   	$tmpl->setvar('diagnosticMessage', $diagnosticMessage);
-   	$tmpl->setvar('diagnosticDetails', $diagnosticDetails);
-
-   	$tmpl->pparse();
- }
 /**
  * Generates a response according to ZeeRex
  * 
+ * This is a machine readable description of this script's capabilities.
+ * 
  * @see http://zeerex.z3950.org/overview/index.html
  * 
- * @global type $explainTemplate
- * @global type $vlibPath
+ * @uses $explainTemplate
  */
  function explain()
  {
     global $explainTemplate;
-    global $vlibPath;
-
-    require_once $vlibPath;
 
     $tmpl = new vlibTemplate($explainTemplate);
     
@@ -111,38 +63,17 @@ function diagnostics($dgId, $dgDetails)
     $tmpl->pparse();
  }
 
- function decodecharrefs($str)
- {
-   //str_replace("alt","neu","Zeichenkette")
-   $str = str_replace("#9#", ";", $str);
-   $str = str_replace("#8#", "&#", $str);
-   return $str;
- }
-
  /**
   * Searches vicav_profiles_001 database using the lemma column
   * 
-  * @uses $responseTemplate;
-  * @uses $version;
-  * @uses $recordSchema;
-  * @uses $recordPacking;
-  * @uses $server;
-  * @uses $user;
-  * @uses $password;
-  * @uses $database;
-  * @uses $vlibPath
-  * @uses $query
+  * @uses $responseTemplate
+  * @uses $sru_fcs_params
+  * @uses $baseURL
   */
- function search($query) {
+ function search() {
     global $responseTemplate;
-    global $version;
-    global $recordSchema;
-    global $recordPacking;
+    global $sru_fcs_params;
     global $baseURL;
-
-    global $vlibPath;
-
-    require_once $vlibPath;
 
     $db = db_connect();
     if ($db->connect_errno) {
@@ -150,8 +81,24 @@ function diagnostics($dgId, $dgDetails)
         return;
     }
 
-    $sqlstr = "SELECT DISTINCT id, entry FROM vicav_profiles_001 ";
-    $sqlstr.= "WHERE lemma = '$query'";
+    
+    // HACK, sql parser? cql.php = GPL -> this GPL too
+    $query = "";
+    $profile_query = preg_filter('/profile *(=|any) *(.*)/', '$2', $sru_fcs_params->query);
+    $sampleText_query = preg_filter('/sampleText *(=|any) *(.*)/', '$2', $sru_fcs_params->query);
+    if (isset($sampleText_query)) {
+        $query = $db->escape_string($sampleText_query);
+        $sqlstr = "SELECT DISTINCT sid, entry FROM vicav_profiles_001 ";
+        $sqlstr.= "WHERE sid = '$query'";
+    } else {
+       if (isset($profile_query)) {
+           $query = $db->escape_string($profile_query);
+       } else {
+           $query = $db->escape_string($sru_fcs_params->query);
+       }
+       $sqlstr = "SELECT DISTINCT id, entry FROM vicav_profiles_001 ";
+       $sqlstr.= "WHERE lemma = '$query'";
+    }
 
     $result = $db->query($sqlstr);
     if ($result !== FALSE) {
@@ -159,7 +106,7 @@ function diagnostics($dgId, $dgDetails)
 
         $tmpl = new vlibTemplate($responseTemplate);
 
-        $tmpl->setvar('version', $version);
+        $tmpl->setvar('version', $sru_fcs_params->version);
         $tmpl->setvar('numberOfRecords', $numberOfRecords);
         $tmpl->setvar('query', $query);
         $tmpl->setvar('baseURL', $baseURL);
@@ -181,11 +128,12 @@ function diagnostics($dgId, $dgDetails)
             $content = $line[1];
 
             array_push($hits, array(
-                'recordSchema' => $recordSchema,
-                'recordPacking' => $recordPacking,
+                'recordSchema' => $sru_fcs_params->recordSchema,
+                'recordPacking' => $sru_fcs_params->recordPacking,
                 'queryUrl' => $baseURL,
                 'content' => decodecharrefs($content),
                 'hitsMetaData' => $hitsMetaData,
+                // TODO: replace this by sth. like $sru_fcs_params->http_build_query
                 'queryUrl' => '?' . htmlentities(http_build_query($_GET)),
             ));
         }
@@ -206,21 +154,11 @@ function diagnostics($dgId, $dgDetails)
  * @see http://www.loc.gov/standards/sru/specs/scan.html
  * 
  * @uses $scanCollectionsTemplate
- * @uses $version
- * @uses $server
- * @uses $user
- * @uses $password
- * @uses $database
- * @uses $vlibPath
- * @uses $scanClause
+ * @uses $sru_fcs_params
  */
-function scan($scanClause) {
+function scan() {
     global $scanTemplate;
-    global $version;
-
-    global $vlibPath;
-
-    require_once $vlibPath;
+    global $sru_fcs_params;
 
     $db = db_connect();
     if ($db->connect_errno) {
@@ -230,14 +168,14 @@ function scan($scanClause) {
     
     $sqlstr = '';
     
-    if ($scanClause === '' || $scanClause === 'profile') {
+    if ($sru_fcs_params->scanClause === '' || $sru_fcs_params->scanClause === 'profile') {
        $sqlstr = "SELECT DISTINCT lemma, id FROM vicav_profiles_001 " .
               "WHERE lemma NOT LIKE '[%]'";   
-    } else if ($scanClause === 'sampleText') {
-       $sqlstr = "SELECT DISTINCT lemma, id FROM vicav_profiles_001 " .
-              "WHERE lemma LIKE '[%]'";           
+    } else if ($sru_fcs_params->scanClause === 'sampleText') {
+       $sqlstr = "SELECT DISTINCT sid, id FROM vicav_profiles_001 " .
+              "WHERE sid LIKE '%_sample_%'";           
     } else {
-        diagnostics('Result set does not exist', 'Result set: ' . $scanClause);
+        diagnostics('Result set does not exist', 'Result set: ' . $sru_fcs_params->scanClause);
         return;
     }
     
@@ -252,6 +190,7 @@ function scan($scanClause) {
     $terms = array();
     $startPosition = 0;
     $position = $startPosition;
+    //TODO: fetch_array is also avaliable for sqlite3. Change? (tests)
     while ((($row = $result->fetch_row()) !== NULL) && 
            ($position < $maximumTerms + $startPosition)) {
         array_push($terms, array(
@@ -263,9 +202,9 @@ function scan($scanClause) {
     
     $tmpl->setloop('terms', $terms);
     
-    $tmpl->setVar('version', $version);
+    $tmpl->setVar('version', $sru_fcs_params->version);
     $tmpl->setVar('count', $numberOfRecords);
-    $tmpl->setVar('clause', $scanClause);
+    $tmpl->setVar('clause', $sru_fcs_params->scanClause);
     $responsePosition = 0;
     $tmpl->setVar('responsePosition', $responsePosition);
     $tmpl->setVar('maximumTerms', $maximumTerms);
@@ -273,53 +212,23 @@ function scan($scanClause) {
     $tmpl->pparse();
 }
 
-//sru params
-  if (isset($_GET['operation']) && trim($_GET['operation']) != "")
-    $operation = trim($_GET['operation']);
-  else
-    $operation = "";
+$sru_fcs_params = new SRUWithFCSParameters("lax");
+// TODO: what's this for ???
+$sru_fcs_params->query = str_replace("|", "#", $sru_fcs_params->query);
+// TODO: why ... ???
+if ($sru_fcs_params->recordPacking !== "xml") {
+    $sru_fcs_params->recordPacking = "raw";
+}
 
-  if (isset($_GET['version']) && trim($_GET['version']) != "")
-    $version = trim($_GET['version']);
-
-  if (isset($_GET['startRecord']) && trim($_GET['startRecord']) != "")
-    $startRecord = trim($_GET['startRecord']);
-  else
-    $startRecord = "";
-
-  if (isset($_GET['maximumRecords']) && trim($_GET['maximumRecords']) != "")
-    $maximumRecords = trim($_GET['maximumRecords']);
-  else
-    $maximumRecords = "";
-
-  if (isset($_GET['query']) && trim($_GET['query']) != "")
-  {
-    $query = trim($_GET['query']);
-    $query = str_replace("|", "#", $query);
-  }
-  else
-    $query = "";
-
-  if (isset($_GET['scanClause']) && trim($_GET['scanClause']) != "")
-    $scanClause = trim($_GET['scanClause']);
-  else
-    $scanClause = "";
-
-  if (isset($_GET['recordPacking']) && trim($_GET['recordPacking']) == "xml")
-    $recordPacking = trim($_GET['recordPacking']);
-  else
-    $recordPacking = "raw";
-
-  header ("content-type: text/xml");
+header ("content-type: text/xml");
   //print "test";
 
-  if ($operation == "explain" || $operation == "") {
+if ($sru_fcs_params->operation == "explain" || $sru_fcs_params->operation == "") {
     explain();
-} else if ($operation == "scan") {
-    scan($scanClause);
-} else if ($operation == "searchRetrieve") {
-    //print "query: $query";
-    search($query);
+} else if ($sru_fcs_params->operation == "scan") {
+    scan();
+} else if ($sru_fcs_params->operation == "searchRetrieve") {
+    search();
 }
 
 
