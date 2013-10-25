@@ -55,6 +55,14 @@ require_once "common.php";
         'sort' => 'false',
     ));
     
+    array_push($maps, array(
+        'title' => 'VICAV Profile Geo Coordinates',
+        'name' => 'geoCoord',
+        'search' => 'true',
+        'scan' => 'true',
+        'sort' => 'false',
+    ));
+    
     $tmpl->setLoop('maps', $maps);
     
     $tmpl->setVar('hostid', htmlentities($_SERVER["HTTP_HOST"]));
@@ -77,7 +85,6 @@ require_once "common.php";
 
     $db = db_connect();
     if ($db->connect_errno) {
-        diagnostics('MySQL Connection Error', 'Failed to connect to database: (' . $db->connect_errno . ") " . $db->connect_error);
         return;
     }
 
@@ -86,10 +93,17 @@ require_once "common.php";
     $query = "";
     $profile_query = preg_filter('/profile *(=|any) *(.*)/', '$2', $sru_fcs_params->query);
     $sampleText_query = preg_filter('/sampleText *(=|any) *(.*)/', '$2', $sru_fcs_params->query);
+    $geoCoord_query = preg_filter('/geoCoord *(=|any) *(.*)/', '$2', $sru_fcs_params->query);
     if (isset($sampleText_query)) {
         $query = $db->escape_string($sampleText_query);
         $sqlstr = "SELECT DISTINCT sid, entry FROM vicav_profiles_001 ";
         $sqlstr.= "WHERE sid = '$query'";
+    } else if (isset($geoCoord_query)){
+        $query = $db->escape_string($geoCoord_query);
+        $sqlstr = "SELECT DISTINCT b.txt, a.entry FROM " .
+                  "vicav_profiles_001 AS a " .
+                  "INNER JOIN vicav_profiles_001_ndx AS b ON b.id = a.id " .
+                  "WHERE b.txt = '$query'";
     } else {
        if (isset($profile_query)) {
            $query = $db->escape_string($profile_query);
@@ -142,7 +156,7 @@ require_once "common.php";
         $tmpl->setloop('hits', $hits);
         $tmpl->pparse();
     } else {
-        diagnostics('MySQL query error.', 'Query was: ' . $sqlstr);
+        diagnostics(1, 'MySQL query error: Query was: ' . $sqlstr);
     }
 }
 
@@ -162,8 +176,7 @@ function scan() {
 
     $db = db_connect();
     if ($db->connect_errno) {
-        diagnostics('MySQL Connection Error', 'Failed to connect to database: (' . $db->connect_errno . ") " . $db->connect_error);
-        exit;
+        return;
     }
     
     $sqlstr = '';
@@ -174,30 +187,38 @@ function scan() {
     } else if ($sru_fcs_params->scanClause === 'sampleText') {
        $sqlstr = "SELECT DISTINCT sid, id FROM vicav_profiles_001 " .
               "WHERE sid LIKE '%_sample_%'";           
+    } else if ($sru_fcs_params->scanClause === 'geoCoord') {
+       $sqlstr = "SELECT DISTINCT b.txt, a.lemma FROM " .
+                 "vicav_profiles_001 AS a " .
+                 "INNER JOIN vicav_profiles_001_ndx AS b ON b.id = a.id " .
+                 "WHERE b.xpath LIKE '%-geo-'"; 
     } else {
-        diagnostics('Result set does not exist', 'Result set: ' . $sru_fcs_params->scanClause);
+        diagnostics(51, 'Result set: ' . $sru_fcs_params->scanClause);
         return;
     }
     
     $maximumTerms = 100;
 
     $result = $db->query($sqlstr);
-
+    if ($result !== FALSE) {
     $numberOfRecords = $result->num_rows;
 
     $tmpl = new vlibTemplate($scanTemplate);
 
     $terms = array();
     $startPosition = 0;
-    $position = $startPosition;
-    //TODO: fetch_array is also avaliable for sqlite3. Change? (tests)
-    while ((($row = $result->fetch_row()) !== NULL) && 
+    $position = $startPosition;    
+    while ((($row = $result->fetch_array()) !== NULL) && 
            ($position < $maximumTerms + $startPosition)) {
-        array_push($terms, array(
+        $term = array(
             'value' => decodecharrefs($row[0]),
-//            'displayTerm' => ???,
+            'numberOfRecords' => 1,
             'position' => ++$position,
-            ));
+            );
+        if (isset($row["lemma"]) && $row["lemma"] !== $term["value"]) {
+            $term["displayTerm"] = $row["lemma"];
+        }
+        array_push($terms, $term);
     }
     
     $tmpl->setloop('terms', $terms);
@@ -210,18 +231,26 @@ function scan() {
     $tmpl->setVar('maximumTerms', $maximumTerms);
 
     $tmpl->pparse();
+    } else {
+        diagnostics(1, 'MySQL query error: Query was: ' . $sqlstr);
+    }
 }
 
 $sru_fcs_params = new SRUWithFCSParameters("lax");
 // TODO: what's this for ???
 $sru_fcs_params->query = str_replace("|", "#", $sru_fcs_params->query);
+if ($sru_fcs_params->recordPacking === "") {
+    $sru_fcs_params->recordPacking = "xml";
+}
 // TODO: why ... ???
 if ($sru_fcs_params->recordPacking !== "xml") {
     $sru_fcs_params->recordPacking = "raw";
 }
 
-header ("content-type: text/xml");
-  //print "test";
+if ($sru_fcs_params->recordPacking === "xml") {
+    header("content-type: text/xml");
+}
+//print "test";
 
 if ($sru_fcs_params->operation == "explain" || $sru_fcs_params->operation == "") {
     explain();

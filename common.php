@@ -32,6 +32,9 @@ function db_connect() {
     global $database;
 
     $db = new mysqli($server, $user, $password, $database);
+    if ($db->connect_errno) {
+        diagnostics(1, 'MySQL Connection Error: Failed to connect to database: (' . $db->connect_errno . ") " . $db->connect_error);
+    }
     return $db;
 }
 
