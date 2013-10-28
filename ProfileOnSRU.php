@@ -90,8 +90,12 @@ require_once "common.php";
 
     
     // HACK, sql parser? cql.php = GPL -> this GPL too
+    $sru_fcs_params->query = str_replace("\"", "", $sru_fcs_params->query);
     $query = "";
     $profile_query = preg_filter('/profile *(=|any) *(.*)/', '$2', $sru_fcs_params->query);
+    if (!isset($profile_query)) {
+        $profile_query = preg_filter('/(cql\.)?serverChoice *(=|any) *(.*)/', '$3', $sru_fcs_params->query);
+    }
     $sampleText_query = preg_filter('/sampleText *(=|any) *(.*)/', '$2', $sru_fcs_params->query);
     $geo_query = preg_filter('/geo *(=|any) *(.*)/', '$2', $sru_fcs_params->query);
     if (isset($sampleText_query)) {
@@ -181,7 +185,10 @@ function scan() {
     
     $sqlstr = '';
     
-    if ($sru_fcs_params->scanClause === '' || $sru_fcs_params->scanClause === 'profile') {
+    if ($sru_fcs_params->scanClause === '' ||
+        $sru_fcs_params->scanClause === 'profile' ||
+        $sru_fcs_params->scanClause === 'serverChoice' ||
+        $sru_fcs_params->scanClause === 'cql.serverChoice') {
        $sqlstr = "SELECT DISTINCT lemma, id FROM vicav_profiles_001 " .
               "WHERE lemma NOT LIKE '[%]'";   
     } else if ($sru_fcs_params->scanClause === 'sampleText') {
