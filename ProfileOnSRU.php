@@ -57,7 +57,7 @@ require_once "common.php";
     
     array_push($maps, array(
         'title' => 'VICAV Profile Geo Coordinates',
-        'name' => 'geoCoord',
+        'name' => 'geo',
         'search' => 'true',
         'scan' => 'true',
         'sort' => 'false',
@@ -93,13 +93,13 @@ require_once "common.php";
     $query = "";
     $profile_query = preg_filter('/profile *(=|any) *(.*)/', '$2', $sru_fcs_params->query);
     $sampleText_query = preg_filter('/sampleText *(=|any) *(.*)/', '$2', $sru_fcs_params->query);
-    $geoCoord_query = preg_filter('/geoCoord *(=|any) *(.*)/', '$2', $sru_fcs_params->query);
+    $geo_query = preg_filter('/geo *(=|any) *(.*)/', '$2', $sru_fcs_params->query);
     if (isset($sampleText_query)) {
         $query = $db->escape_string($sampleText_query);
         $sqlstr = "SELECT DISTINCT sid, entry FROM vicav_profiles_001 ";
         $sqlstr.= "WHERE sid = '$query'";
-    } else if (isset($geoCoord_query)){
-        $query = $db->escape_string($geoCoord_query);
+    } else if (isset($geo_query)){
+        $query = $db->escape_string($geo_query);
         $sqlstr = "SELECT DISTINCT b.txt, a.entry FROM " .
                   "vicav_profiles_001 AS a " .
                   "INNER JOIN vicav_profiles_001_ndx AS b ON b.id = a.id " .
@@ -187,7 +187,7 @@ function scan() {
     } else if ($sru_fcs_params->scanClause === 'sampleText') {
        $sqlstr = "SELECT DISTINCT sid, id FROM vicav_profiles_001 " .
               "WHERE sid LIKE '%_sample_%'";           
-    } else if ($sru_fcs_params->scanClause === 'geoCoord') {
+    } else if ($sru_fcs_params->scanClause === 'geo') {
        $sqlstr = "SELECT DISTINCT b.txt, a.lemma FROM " .
                  "vicav_profiles_001 AS a " .
                  "INNER JOIN vicav_profiles_001_ndx AS b ON b.id = a.id " .
