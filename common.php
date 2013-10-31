@@ -60,21 +60,26 @@ function decodecharrefs($str) {
 }
 
 function sqlForXPath($table, $xpath, $options = NULL) {
-    $sqlstr = "SELECT DISTINCT ndx.txt, base.entry FROM " .
-            $table . " AS base " .
-            "INNER JOIN " . $table . "_ndx AS ndx ON base.id = ndx.id " .
-            "WHERE ndx.xpath LIKE '%" . $xpath . "'";
+    $lemma = "";
+    $query = "";
+    $filter = "";
     if (isset($options) && is_array($options)) {
+        if (isset($options["show-lemma"]) && $options["show-lemma"] === true) {
+            $lemma = ", base.lemma";
+        }
         if (isset($options["query"])) {
-            $query = $options["query"];
-            $sqlstr .= " AND ndx.txt = '$query'";
+            $q = $options["query"];
+            $query .= " AND ndx.txt = '$q'";
         }
         if (isset($options["filter"])) {
-            $filter = $options["filter"];
-            $sqlstr .= " AND ndx.txt != '$filter'";
+            $f = $options["filter"];
+            $filter .= " AND ndx.txt != '$f'";
         }
     }
-    return $sqlstr;
+    return "SELECT DISTINCT ndx.txt, base.entry".$lemma." FROM " .
+            $table . " AS base " .
+            "INNER JOIN " . $table . "_ndx AS ndx ON base.id = ndx.id " .
+            "WHERE ndx.xpath LIKE '%" . $xpath . "'".$query.$filter;
 }
 
 function curPageURL() {

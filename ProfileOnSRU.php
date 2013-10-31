@@ -142,7 +142,7 @@ function scan() {
        $sqlstr = "SELECT DISTINCT sid, id FROM vicav_profiles_001 " .
               "WHERE sid LIKE '%_sample_%'";           
     } else if ($sru_fcs_params->scanClause === 'geo') {
-       $sqlstr = sqlForXPath("vicav_profiles_001", "geo-"); 
+       $sqlstr = sqlForXPath("vicav_profiles_001", "geo-", array("show-lemma" => true)); 
     } else {
         diagnostics(51, 'Result set: ' . $sru_fcs_params->scanClause);
         return;

@@ -39,8 +39,8 @@ require_once "common.php";
     $maps = array();
     
     array_push($maps, array(
-         'title' => 'VICAV Bibliography',
-        'name' => 'bib',
+        'title' => 'VICAV Bibliography',
+        'name' => 'id',
         'search' => 'true',
         'scan' => 'true',
         'sort' => 'false',
