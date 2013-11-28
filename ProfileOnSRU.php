@@ -98,7 +98,10 @@ require_once "common.php";
     } else if (isset($geo_query)){
         $query = $db->escape_string($geo_query);
         $description = "Arabic dialect profile for the coordinates $query";
-        $sqlstr = sqlForXPath("vicav_profiles_001", "geo-", array("query" => $query));
+        $sqlstr = sqlForXPath("vicav_profiles_001", "geo-",
+                array("query" => $query,
+                      "distinct-values" => false,
+                    ));
     } else {
        if (isset($profile_query)) {
            $query = $db->escape_string($profile_query);
@@ -142,7 +145,10 @@ function scan() {
        $sqlstr = "SELECT DISTINCT sid, id FROM vicav_profiles_001 " .
               "WHERE sid LIKE '%_sample_%'";           
     } else if ($sru_fcs_params->scanClause === 'geo') {
-       $sqlstr = sqlForXPath("vicav_profiles_001", "geo-", array("show-lemma" => true)); 
+       $sqlstr = sqlForXPath("vicav_profiles_001", "geo-",
+               array("show-lemma" => true,
+                     "distinct-values" => true,
+           )); 
     } else {
         diagnostics(51, 'Result set: ' . $sru_fcs_params->scanClause);
         return;

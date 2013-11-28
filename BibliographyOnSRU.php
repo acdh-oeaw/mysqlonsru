@@ -87,14 +87,20 @@ require_once "common.php";
     
     if (isset($vicavTaxonomy_query)){
         $query = $db->escape_string($vicavTaxonomy_query);
-        $sqlstr = sqlForXPath("vicav_bibl_002", "-index-term-vicavTaxonomy-", array("query" => $query));
+        $sqlstr = sqlForXPath("vicav_bibl_002", "-index-term-vicavTaxonomy-",
+                array("query" => $query,
+                      "distinct-values" => false,
+                    ));
     } else {
        if (isset($profile_query)) {
            $query = $db->escape_string($profile_query);
        } else {
            $query = $db->escape_string($sru_fcs_params->query);
        }
-       $sqlstr = sqlForXPath("vicav_bibl_002", "biblStruct-xml:id", array("query" => $query));
+       $sqlstr = sqlForXPath("vicav_bibl_002", "biblStruct-xml:id",
+               array("query" => $query,
+                     "distinct-values" => false,
+                   ));
     }
 
     populateSearchResult($db, $sqlstr, "Bibliography for the region of $query");
@@ -123,9 +129,15 @@ function scan() {
         $sru_fcs_params->scanClause === 'id' ||
         $sru_fcs_params->scanClause === 'serverChoice' ||
         $sru_fcs_params->scanClause === 'cql.serverChoice') {
-       $sqlstr = sqlForXPath("vicav_bibl_002", "biblStruct-xml:id", array("filter" => "-"));     
+       $sqlstr = sqlForXPath("vicav_bibl_002", "biblStruct-xml:id",
+               array("filter" => "-",
+                     "distinct-values" => true,
+                   ));     
     } else if ($sru_fcs_params->scanClause === 'vicavTaxonomy') {
-       $sqlstr = sqlForXPath("vicav_bibl_002", "-index-term-vicavTaxonomy-", array("filter" => "-")); 
+       $sqlstr = sqlForXPath("vicav_bibl_002", "-index-term-vicavTaxonomy-",
+               array("filter" => "-",
+                     "distinct-values" => true,
+                   )); 
     } else {
         diagnostics(51, 'Result set: ' . $sru_fcs_params->scanClause);
         return;
