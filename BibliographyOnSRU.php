@@ -78,32 +78,30 @@ require_once "common.php";
     
     // HACK, sql parser? cql.php = GPL -> this GPL too
     $sru_fcs_params->query = str_replace("\"", "", $sru_fcs_params->query);
-    $query = "";
-    $profile_query = preg_filter('/id *(=|any) *(.*)/', '$2', $sru_fcs_params->query);
+    $options = array("distinct-values" => false,);
+    $options["startRecord"] = $sru_fcs_params->startRecord;
+    $options["maximumRecords"] = $sru_fcs_params->maximumRecords;
+    $profile_query = get_search_term_for_wildcard_search("id", $sru_fcs_params->query);
     if (!isset($profile_query)) {
-        $profile_query = preg_filter('/(cql\.)?serverChoice *(=|any) *(.*)/', '$3', $sru_fcs_params->query);
+        $profile_query = get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
     }
-    $vicavTaxonomy_query = preg_filter('/vicavTaxonomy *(=|any) *(.*)/', '$2', $sru_fcs_params->query);
+    $vicavTaxonomy_query = get_search_term_for_wildcard_search("vicavTaxonomy", $sru_fcs_params->query);
     
     if (isset($vicavTaxonomy_query)){
-        $query = $db->escape_string($vicavTaxonomy_query);
+        $options["query"] = $db->escape_string($vicavTaxonomy_query);       
         $sqlstr = sqlForXPath("vicav_bibl_002", "-index-term-vicavTaxonomy-",
-                array("query" => $query,
-                      "distinct-values" => false,
-                    ));
+                $options);
     } else {
        if (isset($profile_query)) {
-           $query = $db->escape_string($profile_query);
+           $options["query"] = $db->escape_string($profile_query);
        } else {
-           $query = $db->escape_string($sru_fcs_params->query);
+           $options["query"] = $db->escape_string($sru_fcs_params->query);
        }
        $sqlstr = sqlForXPath("vicav_bibl_002", "biblStruct-xml:id",
-               array("query" => $query,
-                     "distinct-values" => false,
-                   ));
+                 $options);
     }
 
-    populateSearchResult($db, $sqlstr, "Bibliography for the region of $query");
+    populateSearchResult($db, $sqlstr, "Bibliography for the region of " . $options["query"]);
 }
 
  /**

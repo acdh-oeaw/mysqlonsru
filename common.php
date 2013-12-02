@@ -65,12 +65,21 @@ function decodecharrefs($str) {
  * in the first column and the (full text) entry in the second one. Optionally
  * the third column, lemma, contains the lemma associated with the entry.
  * @param string $table Name of the table to search in.
- * @param string $xpath XPath like statement of the form -node-node-node-
+ * @param string $xpath XPath like statement of the form -node-node-node-.
+ *                      An empty string will select every XPath.
  * @param array $options Options: show-lemma => return a lemma column
  *                                query => The term searched for in the specified nodes
  *                                filter => A term to filter from the specified nodes, eg. - (no text)
  *                                distinct-values => whether the result should have only a single
- *                                                   column for each term found among the XPaths                              
+ *                                                   column for each term found among the XPaths
+ *                                exact => Whether to search for exactly that string, default
+ *                                         is to just search for the string anywhere in the
+ *                                         specified tags.
+ *                                startRecord => limited search starting at this position
+ *                                               of the result set. Default is start at the first.
+ *                                maximumRecords => maximum number of records to return.
+ *                                                  Needs startRecord to be set.
+ *                                                  Default is return all records.                          
  * @return string
  */
 function sqlForXPath($table, $xpath, $options = NULL) {
@@ -83,7 +92,11 @@ function sqlForXPath($table, $xpath, $options = NULL) {
         }
         if (isset($options["query"])) {
             $q = $options["query"];
-            $query .= " AND ndx.txt = '$q'";
+            if (isset($options["exact"]) && $options["exact"] === true) {
+               $query .= " AND ndx.txt = '$q'";
+            } else {
+               $query .= " AND ndx.txt LIKE '%$q%'";
+            }
         }
         if (isset($options["filter"])) {
             $f = $options["filter"];
@@ -91,6 +104,12 @@ function sqlForXPath($table, $xpath, $options = NULL) {
         }
         if (isset($options["distinct-values"]) && $options["distinct-values"] === true) {
             $filter .= "GROUP BY ndx.txt ORDER BY ndx.txt";
+        }
+        if (isset($options["startRecord"])) {
+            $filter .= " LIMIT " . ($options["startRecord"] - 1);
+            if (isset($options["maximumRecords"])) {
+                $filter .= ", " . $options["maximumRecords"];
+            }
         }
     }
     return "SELECT ndx.txt, base.entry".$lemma." FROM " .
@@ -124,10 +143,18 @@ function curPageURL() {
  * @param object $db An object supporting query($sqlstr) which should return a
  *                   query object supporting fetch_row(). Eg. a mysqli object
  *                   or an sqlite3 object.
- * @param type $sqlstr A query string to exequte using $db->query()
- * @param type $description A description used by the $responseTemplate.
+ * @param string $sqlstr A query string to exequte using $db->query()
+ * @param string $description A description used by the $responseTemplate.
+ * @param function $processResult An optional (name of a) function called on every result record
+ *                                so additional processing may be done. The default
+ *                                is to return the result fetched from the DB as is.
+ *                                The function receives the record line (array) returned by
+ *                                the database as input and the db access object.
+ *                                It is expected to return
+ *                                the content that is placed at the appropriate
+ *                                position in the returned XML document.
  */
-function populateSearchResult($db, $sqlstr, $description) {
+function populateSearchResult($db, $sqlstr, $description, $processResult = NULL) {
     global $responseTemplate;
     global $sru_fcs_params;
     
@@ -160,7 +187,11 @@ function populateSearchResult($db, $sqlstr, $description) {
 
         while (($line = $result->fetch_row()) !== NULL) {
             //$id = $line[0];
-            $content = $line[1];
+            if (isset($processResult)) {
+                $content = $processResult($line, $db);
+            } else {
+                $content = $line[1];
+            }
 
             array_push($hits, array(
                 'recordSchema' => $sru_fcs_params->recordSchema,
@@ -271,4 +302,42 @@ function processRequest() {
     } else if ($sru_fcs_params->operation == "searchRetrieve") {
         search();
     }
+}
+
+/**
+ * Returns the search term if a wildcard search is requested for the given index
+ * @param string $index The index name that should be in the query string if
+ * this function is to return a search term.
+ * @param string $queryString The query string passed by the user.
+ * @param string $index_context An optional context name for the index.
+ * As in _cql_.serverChoice.
+ * @return string|NULL The term to search for, NULL if this is not the index the user wanted.
+ */
+function get_search_term_for_wildcard_search($index, $queryString, $index_context = NULL) {
+    $ret = NULL;
+    if (isset($index_context)) {
+        $ret = preg_filter('/(' . $index_context . '\.)?' . $index . ' *(=|any) *(.*)/', '$3', $queryString);
+    } else {
+        $ret = preg_filter('/' . $index . ' *(=|any) *(.*)/', '$2', $queryString);
+    }
+    return $ret;
+}
+
+/**
+ * Returns the search term if an exact search is requested for the given index 
+ * @param string $index The index name that should be in the query string if
+ * this function is to return a search term.
+ * @param string $queryString The query string passed by the user.
+ * @param string $index_context An optional context name for the index.
+ * As in _cql_.serverChoice.
+ * @return string|NULL NULL if this is not the index the user wanted.
+ */
+function get_search_term_for_exact_search($index, $queryString, $index_context = NULL) {
+    $ret = NULL;
+    if (isset($index_context)) {
+        $ret = preg_filter('/(' . $index_context . '\.)?' . $index . ' *(==|(cql\.)?string) *(.*)/', '$4', $queryString);
+    } else {
+        $ret = preg_filter('/' . $index . ' *(==|(cql\.)?string) *(.*)/', '$3', $queryString);
+    }
+    return $ret;
 }
