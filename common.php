@@ -42,7 +42,7 @@ function db_connect() {
  * Decode custom encoding used by web_dict databases to UTF-8
  * 
  * @param string $str
- * @return string
+ * @return string The decoded string as an UTF-8 encoded string.
  */
 function decodecharrefs($str) {
     $replacements = array(
@@ -74,7 +74,7 @@ function encodecharrefs($str) {
 //     "&amp;" => "&#amp;",
 //     "&x" => "&#x",
     );
-    $htmlEncodedStr = utf8_character2html_decimal_numeric($str);
+    $htmlEncodedStr = utf8_character2html_decimal_numeric(utf8_decode($str));
     foreach ($replacements as $search => $replace) {
         $htmlEncodedStr = str_replace($search, $replace, $htmlEncodedStr);
     }
@@ -113,7 +113,7 @@ function sqlForXPath($table, $xpath, $options = NULL) {
             $lemma = ", base.lemma";
         }
         if (isset($options["query"])) {
-            $q = $options["query"];
+            $q = encodecharrefs($options["query"]);
             if (isset($options["exact"]) && $options["exact"] === true) {
                $query .= " AND ndx.txt = '$q'";
             } else {
