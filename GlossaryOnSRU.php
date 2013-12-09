@@ -45,6 +45,14 @@ require_once "common.php";
         'sort' => 'false',
     ));
     
+        array_push($maps, array(
+        'title' => 'VICAV Egyptian English - Arabic',
+        'name' => 'translation',
+        'search' => 'true',
+        'scan' => 'true',
+        'sort' => 'false',
+    ));
+    
     $tmpl->setLoop('maps', $maps);
     
     $tmpl->setVar('hostid', htmlentities($_SERVER["HTTP_HOST"]));
@@ -141,7 +149,65 @@ require_once "common.php";
     populateSearchResult($db, $sqlstr, "Glossary for " . $options["query"], 'processSearchResult');
  }
 
+  /**
+ * Lists the entries from the lemma column in the database
+ * 
+ * Lists either the profiles (city names) or the sample texts ([id])
+ * 
+ * @see http://www.loc.gov/standards/sru/specs/scan.html
+ * 
+ * @uses $sru_fcs_params
+ */
+function scan() {
+    global $glossTable;
+    global $sru_fcs_params;
+
+    $db = db_connect();
+    if ($db->connect_errno) {
+        return;
+    }
+    
+    $sqlstr = '';
+    $options = array("filter" => "-",
+                     "distinct-values" => true,
+                     "query" => "", // the database can't sort or filter due to encoding
+                   );
+    
+    if ($sru_fcs_params->scanClause === '' ||
+        strpos($sru_fcs_params->scanClause, 'entry') == 0 ||
+        $sru_fcs_params->scanClause === 'serverChoice' ||
+        $sru_fcs_params->scanClause === 'cql.serverChoice') {
+       $sqlstr = sqlForXPath($glossTable, "", $options);     
+    } else if ($sru_fcs_params->scanClause === 'translation') {
+       $sqlstr = sqlForXPath($glossTable, "quote-", $options); 
+    } else {
+        diagnostics(51, 'Result set: ' . $sru_fcs_params->scanClause);
+        return;
+    }
+    
+    $lemma_query = get_search_term_for_wildcard_search("entry", $sru_fcs_params->scanClause);
+    if (!isset($lemma_query)) {
+        $lemma_query = get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->scanClause, "cql");
+    }
+    $lemma_query_exact = get_search_term_for_exact_search("entry", $sru_fcs_params->scanClause);
+    if (!isset($lemma_query_exact)) {
+        $lemma_query_exact = get_search_term_for_exact_search("serverChoice", $sru_fcs_params->scanClause, "cql");
+    }
+    
+    $exact = false;
+    $scanClause = $sru_fcs_params->scanClause;
+    if (isset($lemma_query_exact)) { // lemma query matches lemma query exact also!
+        $wildCardSearch = get_wild_card_search($lemma_query_exact);
+        $scanClause = isset($wildCardSearch) ? $wildCardSearch : $lemma_query_exact;
+        $exact = true;
+    } else if (isset($lemma_query)) {
+        $wildCardSearch = get_wild_card_search($lemma_query);
+        $scanClause = isset($wildCardSearch) ? $wildCardSearch : $lemma_query;
+        $exact = false;
+    }
+    
+    populateScanResult($db, $sqlstr, $scanClause, $exact);
+}
 getParamsAndSetUpHeader();
-//$glossTable = $sru_fcs_param["x-context"];
-$glossTable = "arz_eng_006";
+$glossTable = $sru_fcs_params->xcontext;
 processRequest();

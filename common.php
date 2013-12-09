@@ -39,7 +39,7 @@ function db_connect() {
 }
 
 /**
- * Process custom encoding used by web_dict databases
+ * Decode custom encoding used by web_dict databases to UTF-8
  * 
  * @param string $str
  * @return string
@@ -56,7 +56,29 @@ function decodecharrefs($str) {
     foreach ($replacements as $search => $replace) {
         $str = str_replace($search, $replace, $str);
     }
-    return $str;
+    return html_entity_decode_numeric($str);
+}
+
+/**
+ * Take a string and encode it the way it's stored in web_dict dbs.
+ * 
+ * @param type $str String to encode.
+ * @return type Encoded String
+ */
+function encodecharrefs($str) {
+    $replacements = array(
+        ";" => "#9#",
+        "&#" => "#8#",
+//     "&gt;" => "%gt",
+//     "&lt;" => "%lt",
+//     "&amp;" => "&#amp;",
+//     "&x" => "&#x",
+    );
+    $htmlEncodedStr = utf8_character2html_decimal_numeric($str);
+    foreach ($replacements as $search => $replace) {
+        $htmlEncodedStr = str_replace($search, $replace, $htmlEncodedStr);
+    }
+    return $htmlEncodedStr;
 }
 
 /**
@@ -103,7 +125,7 @@ function sqlForXPath($table, $xpath, $options = NULL) {
             $filter .= " AND ndx.txt != '$f'";
         }
         if (isset($options["distinct-values"]) && $options["distinct-values"] === true) {
-            $filter .= "GROUP BY ndx.txt ORDER BY ndx.txt";
+            $filter .= " GROUP BY ndx.txt ORDER BY ndx.txt";
         }
         if (isset($options["startRecord"])) {
             $filter .= " LIMIT " . ($options["startRecord"] - 1);
@@ -219,40 +241,78 @@ function populateSearchResult($db, $sqlstr, $description, $processResult = NULL)
  * @param object $db An object supporting query($sqlstr) which should return a
  *                   query object supporting fetch_row(). Eg. a mysqli object
  *                   or an sqlite3 object.
- * @param type $sqlstr A query string to exequte using $db->query()
+ * @param string $sqlstr A query string to exequte using $db->query()
+ * @param string|array $entry An optional entry from which to start listing terms.
+ *                       If this is an array it is assumed that it its buld like this:
+ *                       array[0] => the beginning search string
+ *                       array[1] => wildcard(s)
+ *                       array[2] => the end of the search string
+ * @param bool $exact If the start word needs to be exactly the specified or
+ *                    if it should be just anywhere in the string.
  */
-function populateScanResult($db, $sqlstr) {
+function populateScanResult($db, $sqlstr, $entry = NULL, $exact = true) {
     global $scanTemplate;
     global $sru_fcs_params;
     
-    $maximumTerms = 100;
-
+    $maximumTerms = $sru_fcs_params->maximumTerms;
+                
     $result = $db->query($sqlstr);
     if ($result !== FALSE) {
         $numberOfRecords = $result->num_rows;
 
         $tmpl = new vlibTemplate($scanTemplate);
 
-        $terms = array();
-        $startPosition = 0;
-        $position = $startPosition;
-        while ((($row = $result->fetch_array()) !== NULL) &&
-        ($position < $maximumTerms + $startPosition)) {
+        $terms = new SplFixedArray($result->num_rows);
+        $i = 0;
+        while (($row = $result->fetch_array()) !== NULL) {
             $term = array(
                 'value' => decodecharrefs($row[0]),
                 'numberOfRecords' => 1,
-                'position' => ++$position,
             );
+            // for sorting ignore some punctation marks etc.
+            $term["sortValue"] = trim(preg_replace('/[?!()*,.\\-\\/|=]/', '', mb_strtoupper($term["value"], 'UTF-8')));
+            // sort strings that start with numbers at the back.
+            $term["sortValue"] = preg_replace('/^(\d)/', 'zz${1}', $term["sortValue"]);
+            // only punctation marks or nothing at all last.
+            if ($term["sortValue"] === "") {
+                $term["sortValue"] = "zzz";
+            }
             if (isset($row["lemma"]) && decodecharrefs($row["lemma"]) !== $term["value"]) {
                 $term["displayTerm"] = decodecharrefs($row["lemma"]);
             }
-            array_push($terms, $term);
+            $terms[$i++] = $term;
+        }
+        $sortedTerms = $terms->toArray();
+        usort($sortedTerms, function ($a, $b) {
+            $ret = strcmp($a["sortValue"],  $b["sortValue"]);
+            return $ret;
+        });
+        $startPosition = 0;
+        if (isset($entry)) {
+            $startAtString = is_array($entry) ? $entry[0] : $entry;          
+            while ($startPosition < count($sortedTerms)) {
+                $found = strpos($sortedTerms[$startPosition]["value"], $startAtString);
+                if ($exact ? $found === 0 : $found !== false) {
+                    break;
+                }
+                $startPosition++;
+            }
+        }
+        $position = $startPosition;
+        $shortList = array();
+        while ($position < min($maximumTerms + $startPosition, count($sortedTerms))){
+            array_push($shortList, $sortedTerms[$position]);
+            $shortList[$position]["position"] = $position + 1;
+//            $shortList[$position]["value"] = encodecharrefs($shortList[$position]["value"]);
+//            $shortList[$position]["value"] = utf8_character2html_decimal_numeric($shortList[$position]["sortValue"]) . "->" . $shortList[$position]["value"];
+            $position++;
         }
 
-        $tmpl->setloop('terms', $terms);
+        $tmpl->setloop('terms', $shortList);
 
         $tmpl->setVar('version', $sru_fcs_params->version);
         $tmpl->setVar('count', $numberOfRecords);
+        $tmpl->setVar('transformedQuery', $sqlstr);
         $tmpl->setVar('clause', $sru_fcs_params->scanClause);
         $responsePosition = 0;
         $tmpl->setVar('responsePosition', $responsePosition);
@@ -324,7 +384,11 @@ function get_search_term_for_wildcard_search($index, $queryString, $index_contex
 }
 
 /**
- * Returns the search term if an exact search is requested for the given index 
+ * Returns the search term if an exact search is requested for the given index
+ * 
+ * Note that the definition of a search anywhere and an exact one is rather close
+ * so get_search_term_for_wildcard_search will also return a result (_=_+search).
+ * 
  * @param string $index The index name that should be in the query string if
  * this function is to return a search term.
  * @param string $queryString The query string passed by the user.
@@ -338,6 +402,23 @@ function get_search_term_for_exact_search($index, $queryString, $index_context =
         $ret = preg_filter('/(' . $index_context . '\.)?' . $index . ' *(==|(cql\.)?string) *(.*)/', '$4', $queryString);
     } else {
         $ret = preg_filter('/' . $index . ' *(==|(cql\.)?string) *(.*)/', '$3', $queryString);
+    }
+    return $ret;
+}
+
+/**
+ * Look for the * or ? wildcards
+ * @param string $input A string that may contain ? or * as wildcards.
+ * @return string|array An array consisting of the first part, the wildcard and 
+ *                      the last part of the search string
+ *                      or just the input string if it didn't contain wildcards
+ */
+function get_wild_card_search($input) {
+    $search = preg_filter('/(\w*)([?*][?]*)(\w*)/', '$1&$2&$3', $input);
+    if (isset($search)) {
+        $ret = explode("&", $search);
+    } else {
+        $ret = $input;
     }
     return $ret;
 }
