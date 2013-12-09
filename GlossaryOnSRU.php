@@ -174,11 +174,11 @@ function scan() {
                    );
     
     if ($sru_fcs_params->scanClause === '' ||
-        strpos($sru_fcs_params->scanClause, 'entry') == 0 ||
-        $sru_fcs_params->scanClause === 'serverChoice' ||
-        $sru_fcs_params->scanClause === 'cql.serverChoice') {
+        strpos($sru_fcs_params->scanClause, 'entry') === 0 ||
+        strpos($sru_fcs_params->scanClause, 'serverChoice') === 0 ||
+        strpos($sru_fcs_params->scanClause, 'cql.serverChoice') === 0) {
        $sqlstr = sqlForXPath($glossTable, "", $options);     
-    } else if ($sru_fcs_params->scanClause === 'translation') {
+    } else if (strpos($sru_fcs_params->scanClause, 'translation') === 0) {
        $sqlstr = sqlForXPath($glossTable, "quote-", $options); 
     } else {
         diagnostics(51, 'Result set: ' . $sru_fcs_params->scanClause);
@@ -195,7 +195,7 @@ function scan() {
     }
     
     $exact = false;
-    $scanClause = $sru_fcs_params->scanClause;
+    $scanClause = ""; // a scan clause that is no index cannot be used.
     if (isset($lemma_query_exact)) { // lemma query matches lemma query exact also!
         $wildCardSearch = get_wild_card_search($lemma_query_exact);
         $scanClause = isset($wildCardSearch) ? $wildCardSearch : $lemma_query_exact;

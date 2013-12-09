@@ -289,8 +289,8 @@ function populateScanResult($db, $sqlstr, $entry = NULL, $exact = true) {
         });
         $startPosition = 0;
         if (isset($entry)) {
-            $startAtString = is_array($entry) ? $entry[0] : $entry;          
-            while ($startPosition < count($sortedTerms)) {
+            $startAtString = is_array($entry) ? $entry[0] : $entry;
+            while ($startAtString !== "" && $startPosition < count($sortedTerms)) {
                 $found = strpos($sortedTerms[$startPosition]["value"], $startAtString);
                 if ($exact ? $found === 0 : $found !== false) {
                     break;
