@@ -42,10 +42,12 @@ function db_connect() {
  * Decode custom encoding used by web_dict databases to UTF-8
  * 
  * @param string $str
- * @return string The decoded string as an UTF-8 encoded string.
+ * @return string The decoded string as an UTF-8 encoded string. May contain
+ *                characters that need to be escaped in XML/XHTML.
  */
 function decodecharrefs($str) {
     $replacements = array(
+        "#8#38#9#" => '&amp;amp;', // & -> &amp;
         "#9#" => ";",
         "#8#" => "&#",
 //     "%gt" => "&gt;",
@@ -87,8 +89,10 @@ function encodecharrefs($str) {
  * in the first column and the (full text) entry in the second one. Optionally
  * the third column, lemma, contains the lemma associated with the entry.
  * @param string $table Name of the table to search in.
+ *                      Maybe overidden by dbtable in options.
  * @param string $xpath XPath like statement of the form -node-node-node-.
  *                      An empty string will select every XPath.
+ *                      My be overridden by xpath in options.
  * @param array $options Options: show-lemma => return a lemma column
  *                                query => The term searched for in the specified nodes
  *                                filter => A term to filter from the specified nodes, eg. - (no text)
@@ -101,14 +105,24 @@ function encodecharrefs($str) {
  *                                               of the result set. Default is start at the first.
  *                                maximumRecords => maximum number of records to return.
  *                                                  Needs startRecord to be set.
- *                                                  Default is return all records.                          
+ *                                                  Default is return all records.
+ *                                dbtable => Overrides $table.
+ *                                xpath => Overrides $xpath.                     
  * @return string
  */
 function sqlForXPath($table, $xpath, $options = NULL) {
     $lemma = "";
     $query = "";
     $filter = "";
+    $groupCount = "";
+    $justCount = false;
     if (isset($options) && is_array($options)) {
+        if (isset($options["dbtable"])) {
+            $table = $options["dbtable"];
+        }
+        if (isset($options["xpath"])) {
+            $xpath = $options["xpath"];
+        }        
         if (isset($options["show-lemma"]) && $options["show-lemma"] === true) {
             $lemma = ", base.lemma";
         }
@@ -125,6 +139,7 @@ function sqlForXPath($table, $xpath, $options = NULL) {
             $filter .= " AND ndx.txt != '$f'";
         }
         if (isset($options["distinct-values"]) && $options["distinct-values"] === true) {
+            $groupCount = ", COUNT(*)";
             $filter .= " GROUP BY ndx.txt ORDER BY ndx.txt";
         }
         if (isset($options["startRecord"])) {
@@ -133,9 +148,12 @@ function sqlForXPath($table, $xpath, $options = NULL) {
                 $filter .= ", " . $options["maximumRecords"];
             }
         }
+        if (isset($options["justCount"]) && $options["justCount"] === true) {
+            $justCount = true;
+        }
     }
-    return "SELECT ndx.txt, base.entry".$lemma." FROM " .
-            $table . " AS base " .
+    return "SELECT" . ($justCount ? " COUNT(*) " : " ndx.txt, base.entry" . $lemma . $groupCount) .
+            " FROM " . $table . " AS base " .
             "INNER JOIN " . $table . "_ndx AS ndx ON base.id = ndx.id " .
             "WHERE ndx.xpath LIKE '%" . $xpath . "'".$query.$filter;            
 }
@@ -165,7 +183,9 @@ function curPageURL() {
  * @param object $db An object supporting query($sqlstr) which should return a
  *                   query object supporting fetch_row(). Eg. a mysqli object
  *                   or an sqlite3 object.
- * @param string $sqlstr A query string to exequte using $db->query()
+ * @param array|string $sql Either an arrary that can be used to get a query string using
+ *                          sqlForPath;
+ *                          or a query string to exequte using $db->query()
  * @param string $description A description used by the $responseTemplate.
  * @param function $processResult An optional (name of a) function called on every result record
  *                                so additional processing may be done. The default
@@ -176,15 +196,36 @@ function curPageURL() {
  *                                the content that is placed at the appropriate
  *                                position in the returned XML document.
  */
-function populateSearchResult($db, $sqlstr, $description, $processResult = NULL) {
+function populateSearchResult($db, $sql, $description, $processResult = NULL) {
     global $responseTemplate;
     global $sru_fcs_params;
     
     $baseURL = curPageURL();
     
-    $result = $db->query($sqlstr);
+    $extraCountSql = false;
+    if (is_array($sql)) {
+        $options = $sql;
+        $sql = sqlForXPath("", "", $options);
+        if (isset($options["maximumRecords"])) {
+            $options["startRecord"] = NULL;
+            $options["maximumRecords"] = NULL;
+            $options["justCount"] = true;
+            $countSql = sqlForXPath("", "", $options);
+            $result = $db->query($countSql);
+            if ($result !== false) {
+                $line = $result->fetch_row();
+                $extraCountSql = $line[0];
+            }
+        }
+    }
+    
+    $result = $db->query($sql);
     if ($result !== FALSE) {
-        $numberOfRecords = $result->num_rows;
+        if ($extraCountSql !== false) {
+            $numberOfRecords = $extraCountSql;
+        } else {
+            $numberOfRecords = $result->num_rows;
+        }
 
         $tmpl = new vlibTemplate($responseTemplate);
 
@@ -193,7 +234,7 @@ function populateSearchResult($db, $sqlstr, $description, $processResult = NULL)
         // There is currently no support for limiting the number of results.
         $tmpl->setVar('returnedRecords', $numberOfRecords);
         $tmpl->setVar('query', $sru_fcs_params->query);
-        $tmpl->setVar('transformedQuery', $sqlstr);
+        $tmpl->setVar('transformedQuery', $sql);
         $tmpl->setVar('baseURL', $baseURL);
         $tmpl->setVar('xcontext', $sru_fcs_params->xcontext);
         $tmpl->setVar('xdataview', "full");
@@ -230,7 +271,7 @@ function populateSearchResult($db, $sqlstr, $description, $processResult = NULL)
         $tmpl->setloop('hits', $hits);
         $tmpl->pparse();
     } else {
-        diagnostics(1, 'MySQL query error: Query was: ' . $sqlstr);
+        diagnostics(1, 'MySQL query error: Query was: ' . $sql);
     }
 }
 
@@ -267,7 +308,7 @@ function populateScanResult($db, $sqlstr, $entry = NULL, $exact = true) {
         while (($row = $result->fetch_array()) !== NULL) {
             $term = array(
                 'value' => decodecharrefs($row[0]),
-                'numberOfRecords' => 1,
+                'numberOfRecords' => $row[2],
             );
             // for sorting ignore some punctation marks etc.
             $term["sortValue"] = trim(preg_replace('/[?!()*,.\\-\\/|=]/', '', mb_strtoupper($term["value"], 'UTF-8')));

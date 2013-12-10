@@ -143,10 +143,9 @@ require_once "common.php";
     } else {
         $options["query"] = $db->escape_string($sru_fcs_params->query);
     }
-    
-    $sqlstr = sqlForXPath($glossTable, "", $options);
+    $options["dbtable"] = $glossTable;
 
-    populateSearchResult($db, $sqlstr, "Glossary for " . $options["query"], 'processSearchResult');
+    populateSearchResult($db, $options, "Glossary for " . $options["query"], 'processSearchResult');
  }
 
   /**
