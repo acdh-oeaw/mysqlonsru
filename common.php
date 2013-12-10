@@ -232,7 +232,7 @@ function populateSearchResult($db, $sql, $description, $processResult = NULL) {
         $tmpl->setVar('version', $sru_fcs_params->version);
         $tmpl->setVar('numberOfRecords', $numberOfRecords);
         // There is currently no support for limiting the number of results.
-        $tmpl->setVar('returnedRecords', $numberOfRecords);
+        $tmpl->setVar('returnedRecords', $result->num_rows);
         $tmpl->setVar('query', $sru_fcs_params->query);
         $tmpl->setVar('transformedQuery', $sql);
         $tmpl->setVar('baseURL', $baseURL);
