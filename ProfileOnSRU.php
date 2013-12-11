@@ -84,33 +84,57 @@ require_once "common.php";
     $sru_fcs_params->query = str_replace("\"", "", $sru_fcs_params->query);
     $query = "";
     $description = "";
-    $profile_query = preg_filter('/profile *(=|any) *(.*)/', '$2', $sru_fcs_params->query);
+    $profile_query = get_search_term_for_wildcard_search("profile", $sru_fcs_params->query);
     if (!isset($profile_query)) {
-        $profile_query = preg_filter('/(cql\.)?serverChoice *(=|any) *(.*)/', '$3', $sru_fcs_params->query);
+        $profile_query = get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
     }
-    $sampleText_query = preg_filter('/sampleText *(=|any) *(.*)/', '$2', $sru_fcs_params->query);
-    $geo_query = preg_filter('/geo *(=|any) *(.*)/', '$2', $sru_fcs_params->query);
-    if (isset($sampleText_query)) {
-        $query = $db->escape_string($sampleText_query);
+    $sampleText_query = get_search_term_for_wildcard_search("sampleText", $sru_fcs_params->query);
+    $geo_query = get_search_term_for_wildcard_search("geo", $sru_fcs_params->query);
+    $profile_query_exact = get_search_term_for_exact_search("profile", $sru_fcs_params->query);
+    if (!isset($profile_query)) {
+        $profile_query_exact = get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
+    }
+    $sampleText_query_exact = get_search_term_for_exact_search("sampleText", $sru_fcs_params->query);
+    $geo_query_exact = get_search_term_for_exact_search("geo", $sru_fcs_params->query);
+    // there is no point in having a fuzzy geo search yet so treat it as exact always
+    if (!isset($geo_query_exact)) {
+        $geo_query_exact = $geo_query;
+    }
+    $options = array (
+       "dbtable" => "vicav_profiles_001",
+       "query" => $query,
+       "distinct-values" => false,
+    );
+    if (isset($sampleText_query_exact)) {
+        $query = $db->escape_string($sampleText_query_exact);
         $description = "Arabic dialect sample text for the region of $query";
         $sqlstr = "SELECT DISTINCT sid, entry FROM vicav_profiles_001 ";
         $sqlstr.= "WHERE sid = '$query'";
-    } else if (isset($geo_query)){
-        $query = $db->escape_string($geo_query);
-        $description = "Arabic dialect profile for the coordinates $query";
-        $sqlstr = sqlForXPath("vicav_profiles_001", "geo-",
-                array("query" => $query,
-                      "distinct-values" => false,
-                    ));
+    } else if (isset($sampleText_query)) {
+        $query = $db->escape_string($sampleText_query);
+        $description = "Arabic dialect sample text for the region of $query";
+        $sqlstr = "SELECT DISTINCT sid, entry FROM vicav_profiles_001 ";
+        $sqlstr.= "WHERE sid LIKE '%" . $query . "_sample%'";
+    } else if (isset($geo_query_exact)){
+        $query = $db->escape_string($geo_query_exact);
+        $description = "Arabic dialect profile for the coordinates $geo_query_exact";
+        $options["xpath"] = "geo-";
+        $sqlstr = $options;
     } else {
-       if (isset($profile_query)) {
+       if (isset($profile_query_exact)) {
+           $query = $db->escape_string($profile_query_exact);
+       } else if (isset($profile_query)) {
            $query = $db->escape_string($profile_query);
        } else {
            $query = $db->escape_string($sru_fcs_params->query);
        }
        $description = "Arabic dialect profile for the region of $query"; 
        $sqlstr = "SELECT DISTINCT id, entry FROM vicav_profiles_001 ";
-       $sqlstr.= "WHERE lemma = '$query'";
+       if (isset($profile_query_exact)) {
+          $sqlstr.= "WHERE lemma = '$query'"; 
+       } else {
+          $sqlstr.= "WHERE lemma LIKE '%$query%'";
+       }
     }   
     populateSearchResult($db, $sqlstr, $description);
 }
@@ -139,11 +163,11 @@ function scan() {
         $sru_fcs_params->scanClause === 'profile' ||
         $sru_fcs_params->scanClause === 'serverChoice' ||
         $sru_fcs_params->scanClause === 'cql.serverChoice') {
-       $sqlstr = "SELECT DISTINCT lemma, id FROM vicav_profiles_001 " .
-              "WHERE lemma NOT LIKE '[%]'";   
+       $sqlstr = "SELECT DISTINCT lemma, id, COUNT(*) FROM vicav_profiles_001 " .
+              "WHERE lemma NOT LIKE '[%]' GROUP BY lemma";   
     } else if ($sru_fcs_params->scanClause === 'sampleText') {
-       $sqlstr = "SELECT DISTINCT sid, id FROM vicav_profiles_001 " .
-              "WHERE sid LIKE '%_sample_%'";           
+       $sqlstr = "SELECT DISTINCT sid, id, COUNT(*) FROM vicav_profiles_001 " .
+              "WHERE sid LIKE '%_sample_%' GROUP BY sid";           
     } else if ($sru_fcs_params->scanClause === 'geo') {
        $sqlstr = sqlForXPath("vicav_profiles_001", "geo-",
                array("show-lemma" => true,

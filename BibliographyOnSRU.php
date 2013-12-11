@@ -78,7 +78,8 @@ require_once "common.php";
     
     // HACK, sql parser? cql.php = GPL -> this GPL too
     $sru_fcs_params->query = str_replace("\"", "", $sru_fcs_params->query);
-    $options = array("distinct-values" => false,);
+    $options = array("distinct-values" => false,
+       "dbtable" => "vicav_bibl_002",);
     $options["startRecord"] = $sru_fcs_params->startRecord;
     $options["maximumRecords"] = $sru_fcs_params->maximumRecords;
     $profile_query = get_search_term_for_wildcard_search("id", $sru_fcs_params->query);
@@ -86,22 +87,32 @@ require_once "common.php";
         $profile_query = get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
     }
     $vicavTaxonomy_query = get_search_term_for_wildcard_search("vicavTaxonomy", $sru_fcs_params->query);
+    $profile_query_exact = get_search_term_for_exact_search("id", $sru_fcs_params->query);
+    if (!isset($profile_query_exact)) {
+        $profile_query_exact = get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
+    }
+    $vicavTaxonomy_query_exact = get_search_term_for_exact_search("vicavTaxonomy", $sru_fcs_params->query);
     
-    if (isset($vicavTaxonomy_query)){
+    if (isset($vicavTaxonomy_query_exact)){
+        $options["query"] = $db->escape_string($vicavTaxonomy_query_exact);       
+        $options["xpath"] = "-index-term-vicavTaxonomy-";
+        $options["exact"] = true;
+    } else if (isset($vicavTaxonomy_query)) {
         $options["query"] = $db->escape_string($vicavTaxonomy_query);       
-        $sqlstr = sqlForXPath("vicav_bibl_002", "-index-term-vicavTaxonomy-",
-                $options);
-    } else {
-       if (isset($profile_query)) {
+        $options["xpath"] = "-index-term-vicavTaxonomy-";        
+    } else{
+       if (isset($profile_query_exact)) {
+           $options["query"] = $db->escape_string($profile_query_exact);
+           $options["exact"] = true;
+       } else if (isset($profile_query)) {
            $options["query"] = $db->escape_string($profile_query);
        } else {
            $options["query"] = $db->escape_string($sru_fcs_params->query);
        }
-       $sqlstr = sqlForXPath("vicav_bibl_002", "biblStruct-xml:id",
-                 $options);
+       $options["xpath"] = "biblStruct-xml:id";
     }
 
-    populateSearchResult($db, $sqlstr, "Bibliography for the region of " . $options["query"]);
+    populateSearchResult($db, $options, "Bibliography for the region of " . $options["query"]);
 }
 
  /**
