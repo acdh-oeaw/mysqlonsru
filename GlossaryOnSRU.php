@@ -40,26 +40,24 @@ function langId2LangName($langId) {
  * 
  * @see http://zeerex.z3950.org/overview/index.html
  * 
- * @uses $explainTemplate
  */
  function explain()
  {
     global $glossTable;
-    global $explainTemplate;
     
     if (!isset($glossTable)) {
         diagnostics(1, 'This script needs to know which resource to use!');
         return; 
     }
     
+    $db = db_connect();
+    if ($db->connect_errno) {
+        return;
+    }
+    
     $resIdParts = explode("_", $glossTable);
-    
     $langId = langId2LangName($resIdParts[0]);
-    
     $transLangId = langId2LangName($resIdParts[1]);
-            
-    $tmpl = new vlibTemplate($explainTemplate);
-    
     $maps = array();
  
     array_push($maps, array(
@@ -77,13 +75,8 @@ function langId2LangName($langId) {
         'scan' => 'true',
         'sort' => 'false',
     ));
-    
-    $tmpl->setLoop('maps', $maps);
-    
-    $tmpl->setVar('hostid', htmlentities($_SERVER["HTTP_HOST"]));
-    $tmpl->setVar('database', 'vicav-bib');
-    $tmpl->setVar('databaseTitle', 'VICAV Bibliography');
-    $tmpl->pparse();
+        
+    populateExplainResult($db, $glossTable, $glossTable, $maps);
  }
 
  function processSearchResult($line, $db) {

@@ -177,6 +177,66 @@ function curPageURL() {
 }
 
 /**
+ * Fill in the ZeeRex explain template and return it to the client.
+ * 
+ * @uses $explainTemplate
+ * @param object $db
+ * @param string $table The table from which the teiHeader at id 1 is fetched.
+ * @param string $publicName The public name for this resource.
+ * @param array $indices An array with index configuratiuons. Should contain maps
+ *                       with the following keys:
+ *                       title string: An intelligable title for the index.
+ *                       name string: The name of the index unterstood by the script
+ *                       search bool
+ *                       scan bool
+ *                       sott bool
+ * @see http://zeerex.z3950.org/overview/index.html
+ */
+function populateExplainResult ($db, $table, $publicName, $indices) {
+    global $explainTemplate;
+    
+    $result = $db->query("SELECT entry FROM $table WHERE id = 1");
+    if ($result !== false) {
+        $line = $result->fetch_array();
+        $xmlDoc = new DOMDocument();
+        $xmlDoc->loadXML(decodecharrefs($line[0]));
+        $xmlDocXPath = new DOMXPath($xmlDoc);
+    }
+    
+    $title = "";
+    $authors = "";
+    $restrictions = "";
+    $description = "";
+    if (isset($xmlDocXPath)) {
+        $title = $xmlDocXPath->evaluate('string(//titleStmt/title)');
+
+        $authorsNodes = $xmlDocXPath->query('//fileDesc/author');
+        $authors = "";
+        foreach ($authorsNodes as $author) {
+            $authors .= "; " . $author->nodeValue;
+        }
+        $authors = substr($authors, 2);
+
+        $restrictions = $xmlDocXPath->evaluate('string(//publicationStmt/availability[@status="restricted"]//ref/@target)');
+
+        $description = $xmlDocXPath->evaluate('string(//publicationStmt/pubPlace)') . ', ' .
+                $xmlDocXPath->evaluate('string(//publicationStmt/date)') . '. Edition: ' .
+                $xmlDocXPath->evaluate('string(//editionStmt/edition)') . '.';
+    }
+    
+    $tmpl = new vlibTemplate($explainTemplate);
+    
+    $tmpl->setLoop('maps', $indices);
+    
+    $tmpl->setVar('hostid', htmlentities($_SERVER["HTTP_HOST"]));
+    $tmpl->setVar('database', $publicName);
+    $tmpl->setVar('databaseTitle', $title);
+    $tmpl->setVar('databaseAuthor', $authors);
+    $tmpl->setVar('dbRestrictions', $restrictions);
+    $tmpl->setVar('dbDescription', $description);
+    $tmpl->pparse();
+}
+/**
  * Execute a search and return the result using the $responseTemplate
  * @uses $responseTemplate
  * @uses $sru_fcs_params

@@ -24,13 +24,13 @@ require_once "common.php";
  * 
  * @see http://zeerex.z3950.org/overview/index.html
  * 
- * @uses $explainTemplate
  */
  function explain()
  {
-    global $explainTemplate;
-
-    $tmpl = new vlibTemplate($explainTemplate);
+    $db = db_connect();
+    if ($db->connect_errno) {
+        return;
+    }
     
     $maps = array();
     
@@ -58,12 +58,7 @@ require_once "common.php";
         'sort' => 'false',
     ));
     
-    $tmpl->setLoop('maps', $maps);
-    
-    $tmpl->setVar('hostid', htmlentities($_SERVER["HTTP_HOST"]));
-    $tmpl->setVar('database', 'vicav-profile');
-    $tmpl->setVar('databaseTitle', 'VICAV Profile');
-    $tmpl->pparse();
+    populateExplainResult($db, "vicav_profiles_001", "vicav-profile", $maps);
  }
 
  /**
