@@ -20,6 +20,19 @@
 
 require_once "common.php";
 
+function langId2LangName($langId) {
+    $langIds = array(
+        "arz" => "Egyptian",
+        "apc" => "Syrian",
+        "aeb" => "Tunisian",
+        "eng" => "English/German",
+    );
+    if (isset($langIds[$langId])) {
+        $langId = $langIds[$langId];
+    }
+    return $langId;
+}
+
 /**
  * Generates a response according to ZeeRex
  * 
@@ -31,14 +44,26 @@ require_once "common.php";
  */
  function explain()
  {
+    global $glossTable;
     global $explainTemplate;
-
+    
+    if (!isset($glossTable)) {
+        diagnostics(1, 'This script needs to know which resource to use!');
+        return; 
+    }
+    
+    $resIdParts = explode("_", $glossTable);
+    
+    $langId = langId2LangName($resIdParts[0]);
+    
+    $transLangId = langId2LangName($resIdParts[1]);
+            
     $tmpl = new vlibTemplate($explainTemplate);
     
     $maps = array();
  
     array_push($maps, array(
-        'title' => 'VICAV Egyptian Arabic - English',
+        'title' => "VICAV $langId - $transLangId any entry",
         'name' => 'entry',
         'search' => 'true',
         'scan' => 'true',
@@ -46,8 +71,8 @@ require_once "common.php";
     ));
     
         array_push($maps, array(
-        'title' => 'VICAV Egyptian English - Arabic',
-        'name' => 'translation',
+        'title' => "VICAV $langId - $transLangId translated sense",
+        'name' => 'sense',
         'search' => 'true',
         'scan' => 'true',
         'sort' => 'false',
@@ -134,8 +159,17 @@ require_once "common.php";
     if (!isset($lemma_query_exact)) {
         $lemma_query_exact = get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
     }
+    $sense_query_exact = get_search_term_for_exact_search("sense", $sru_fcs_params->query);
+    $sense_query = get_search_term_for_wildcard_search("sense", $sru_fcs_params->query);
  
-    if (isset($lemma_query_exact)) {
+    if (isset($sense_query_exact)) {
+        $options["query"] = $db->escape_string($sense_query_exact);
+        $options["xpath"] = "-quote-";
+        $options["exact"] = true;
+    } else if (isset($sense_query)) {
+        $options["query"] = $db->escape_string($sense_query);
+        $options["xpath"] = "-quote-";
+    } else if (isset($lemma_query_exact)) {
         $options["query"] = $db->escape_string($lemma_query_exact);
         $options["exact"] = true;
     } else if (isset($lemma_query)) {
@@ -177,8 +211,8 @@ function scan() {
         strpos($sru_fcs_params->scanClause, 'serverChoice') === 0 ||
         strpos($sru_fcs_params->scanClause, 'cql.serverChoice') === 0) {
        $sqlstr = sqlForXPath($glossTable, "", $options);     
-    } else if (strpos($sru_fcs_params->scanClause, 'translation') === 0) {
-       $sqlstr = sqlForXPath($glossTable, "quote-", $options); 
+    } else if (strpos($sru_fcs_params->scanClause, 'sense') === 0) {
+       $sqlstr = sqlForXPath($glossTable, "-quote-", $options); 
     } else {
         diagnostics(51, 'Result set: ' . $sru_fcs_params->scanClause);
         return;
