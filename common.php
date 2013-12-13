@@ -96,6 +96,9 @@ function encodecharrefs($str) {
  * @param array $options Options: show-lemma => return a lemma column
  *                                query => The term searched for in the specified nodes
  *                                filter => A term to filter from the specified nodes, eg. - (no text)
+ *                                xpath-filters => An array of the form $xpaht => $text values which limits
+ *                                                 the result to all those entries that end in an
+ *                                                 xpath having the value text.
  *                                distinct-values => whether the result should have only a single
  *                                                   column for each term found among the XPaths
  *                                exact => Whether to search for exactly that string, default
@@ -107,7 +110,7 @@ function encodecharrefs($str) {
  *                                                  Needs startRecord to be set.
  *                                                  Default is return all records.
  *                                dbtable => Overrides $table.
- *                                xpath => Overrides $xpath.                     
+ *                                xpath => Overrides $xpath.                   
  * @return string
  */
 function sqlForXPath($table, $xpath, $options = NULL) {
@@ -151,11 +154,29 @@ function sqlForXPath($table, $xpath, $options = NULL) {
         if (isset($options["justCount"]) && $options["justCount"] === true) {
             $justCount = true;
         }
+        if (isset($options["xpath-filters"])) {
+            $tableOrPrefilter = genereatePrefilterSql($table, $options);
+        } else {
+            $tableOrPrefilter = $table;
+        }
     }
     return "SELECT" . ($justCount ? " COUNT(*) " : " ndx.txt, base.entry" . $lemma . $groupCount) .
-            " FROM " . $table . " AS base " .
+            " FROM " . $tableOrPrefilter . " AS base " .
             "INNER JOIN " . $table . "_ndx AS ndx ON base.id = ndx.id " .
             "WHERE ndx.xpath LIKE '%" . $xpath . "'".$query.$filter;            
+}
+
+function genereatePrefilterSql($table, $options) {
+    $recursiveOptions = $options;
+    $recursiveOptions["xpath-filters"] = array_slice($recursiveOptions["xpath-filters"], 2, 0, true);
+    if (count($recursiveOptions["xpath-filters"]) === 0) {
+        $tableOrPrefilter = $table;
+    } else {
+        $tableOrPrefilter = genereatePrefilterSql($table, $recursiveOptions);
+    }
+    return '(SELECT base.* FROM '. $table . ' AS base INNER JOIN ' . $table .
+           "_ndx AS prefilter ON base.id=prefilter.id WHERE prefilter.xpath LIKE  '%" .
+            key($options["xpath-filters"]) . "' AND prefilter.txt = '" . current($options["xpath-filters"]) ."')";
 }
 
 /**

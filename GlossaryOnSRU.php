@@ -20,6 +20,10 @@
 
 require_once "common.php";
 
+$restrictedGlossaries = array(
+    "apc_eng_002",
+);
+
 function langId2LangName($langId) {
     $langIds = array(
         "arz" => "Egyptian",
@@ -129,10 +133,17 @@ function langId2LangName($langId) {
     return $content;
 }
  
+/**
+ * 
+ * @uses $glossTable
+ * @uses $sru_fcs_params
+ * @uses $restrictedGlossaries
+ */
  function search()
  {
     global $glossTable;
     global $sru_fcs_params;
+    global $restrictedGlossaries;
 
     $db = db_connect();
     if ($db->connect_errno) {
@@ -171,6 +182,12 @@ function langId2LangName($langId) {
         $options["query"] = $db->escape_string($sru_fcs_params->query);
     }
     $options["dbtable"] = $glossTable;
+    
+    if (in_array($glossTable, $restrictedGlossaries)) {
+        $options["xpath-filters"] = array (
+            "-change-f-status-" => "released",
+        );
+    }
 
     populateSearchResult($db, $options, "Glossary for " . $options["query"], 'processSearchResult');
  }
@@ -183,10 +200,13 @@ function langId2LangName($langId) {
  * @see http://www.loc.gov/standards/sru/specs/scan.html
  * 
  * @uses $sru_fcs_params
+ * @uses $glossTable
+ * @uses $restrictedGlossaries
  */
 function scan() {
     global $glossTable;
     global $sru_fcs_params;
+    global $restrictedGlossaries;
 
     $db = db_connect();
     if ($db->connect_errno) {
@@ -198,6 +218,11 @@ function scan() {
                      "distinct-values" => true,
                      "query" => "", // the database can't sort or filter due to encoding
                    );
+    if (in_array($glossTable, $restrictedGlossaries)) {
+        $options["xpath-filters"] = array (
+            "-change-f-status-" => "released",
+        );
+    }
     
     if ($sru_fcs_params->scanClause === '' ||
         strpos($sru_fcs_params->scanClause, 'entry') === 0 ||
