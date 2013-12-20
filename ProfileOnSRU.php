@@ -114,6 +114,8 @@ require_once "common.php";
         $query = $db->escape_string($geo_query_exact);
         $description = "Arabic dialect profile for the coordinates $geo_query_exact";
         $options["xpath"] = "geo-";
+        $options["query"] = $geo_query_exact;
+        $options["exact"] = true;
         $sqlstr = $options;
     } else {
        if (isset($profile_query_exact)) {
