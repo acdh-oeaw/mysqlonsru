@@ -11,6 +11,8 @@
  */
 require_once "../utils-php/common.php";
 
+use clausvb\vlib\vlibTemplate;
+
 /**
  * Load database and user data
  */
