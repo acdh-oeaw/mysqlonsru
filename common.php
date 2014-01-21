@@ -70,6 +70,7 @@ function decodecharrefs($str) {
  * @return type Encoded String
  */
 function encodecharrefs($str) {
+    if ($str === null) {return null;}
     $replacements = array(
         ";" => "#9#",
         "&#" => "#8#",
@@ -495,7 +496,8 @@ function processRequest() {
  * @param string $queryString The query string passed by the user.
  * @param string $index_context An optional context name for the index.
  * As in _cql_.serverChoice.
- * @return string|NULL The term to search for, NULL if this is not the index the user wanted.
+ * @return string|NULL The term to search for, NULL if this is not the index the user wanted. The string
+ * is encoded as needed by the web_dict dbs!
  */
 function get_search_term_for_wildcard_search($index, $queryString, $index_context = NULL) {
     $ret = NULL;
@@ -504,7 +506,7 @@ function get_search_term_for_wildcard_search($index, $queryString, $index_contex
     } else {
         $ret = preg_filter('/' . $index . ' *(=|any) *(.*)/', '$2', $queryString);
     }
-    return $ret;
+    return encodecharrefs($ret);
 }
 
 /**
@@ -518,7 +520,8 @@ function get_search_term_for_wildcard_search($index, $queryString, $index_contex
  * @param string $queryString The query string passed by the user.
  * @param string $index_context An optional context name for the index.
  * As in _cql_.serverChoice.
- * @return string|NULL NULL if this is not the index the user wanted.
+ * @return string|NULL NULL if this is not the index the user wanted. The string
+ * is encoded as needed by the web_dict dbs!
  */
 function get_search_term_for_exact_search($index, $queryString, $index_context = NULL) {
     $ret = NULL;
@@ -527,7 +530,7 @@ function get_search_term_for_exact_search($index, $queryString, $index_context =
     } else {
         $ret = preg_filter('/' . $index . ' *(==|(cql\.)?string) *(.*)/', '$3', $queryString);
     }
-    return $ret;
+    return encodecharrefs($ret);
 }
 
 /**

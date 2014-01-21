@@ -126,9 +126,9 @@ require_once "common.php";
        $description = "Arabic dialect profile for the region of $query"; 
        $sqlstr = "SELECT DISTINCT id, entry FROM vicav_profiles_001 ";
        if (isset($profile_query_exact)) {
-          $sqlstr.= "WHERE lemma = '$query'"; 
+          $sqlstr.= "WHERE lemma = '" . encodecharrefs($query) . "'"; 
        } else {
-          $sqlstr.= "WHERE lemma LIKE '%$query%'";
+          $sqlstr.= "WHERE lemma LIKE '%" . encodecharrefs($query) . "%'";
        }
     }   
     populateSearchResult($db, $sqlstr, $description);
