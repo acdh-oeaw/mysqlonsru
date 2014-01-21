@@ -144,9 +144,15 @@ function sqlForXPath($table, $xpath, $options = NULL) {
             $f = $options["filter"];
             $filter .= " AND ndx.txt != '$f'";
         }
+        if (isset($options["justCount"]) && $options["justCount"] === true) {
+            $justCount = true;
+        }
         if (isset($options["distinct-values"]) && $options["distinct-values"] === true) {
             $groupCount = ", COUNT(*)";
             $filter .= " GROUP BY ndx.txt ORDER BY ndx.txt";
+        } else if ($justCount !== true) {
+            $groupCount = ", COUNT(*)";
+            $filter .= " GROUP BY base.sid";
         }
         if (isset($options["startRecord"])) {
             $filter .= " LIMIT " . ($options["startRecord"] - 1);
@@ -154,16 +160,13 @@ function sqlForXPath($table, $xpath, $options = NULL) {
                 $filter .= ", " . $options["maximumRecords"];
             }
         }
-        if (isset($options["justCount"]) && $options["justCount"] === true) {
-            $justCount = true;
-        }
         if (isset($options["xpath-filters"])) {
             $tableOrPrefilter = genereatePrefilterSql($table, $options);
         } else {
             $tableOrPrefilter = $table;
         }
     }
-    return "SELECT" . ($justCount ? " COUNT(*) " : " ndx.txt, base.entry" . $lemma . $groupCount) .
+    return "SELECT" . ($justCount ? " COUNT(*) " : " ndx.txt, base.entry, base.sid" . $lemma . $groupCount) .
             " FROM " . $tableOrPrefilter . " AS base " .
             "INNER JOIN " . $table . "_ndx AS ndx ON base.id = ndx.id " .
             "WHERE ndx.xpath LIKE '%" . $xpath . "'".$query.$filter;            
@@ -392,7 +395,7 @@ function populateScanResult($db, $sqlstr, $entry = NULL, $exact = true) {
         while (($row = $result->fetch_array()) !== NULL) {
             $term = array(
                 'value' => decodecharrefs($row[0]),
-                'numberOfRecords' => $row[2],
+                'numberOfRecords' => $row[3],
             );
             // for sorting ignore some punctation marks etc.
             $term["sortValue"] = trim(preg_replace('/[?!()*,.\\-\\/|=]/', '', mb_strtoupper($term["value"], 'UTF-8')));

@@ -158,10 +158,10 @@ function scan() {
         $sru_fcs_params->scanClause === 'profile' ||
         $sru_fcs_params->scanClause === 'serverChoice' ||
         $sru_fcs_params->scanClause === 'cql.serverChoice') {
-       $sqlstr = "SELECT DISTINCT lemma, id, COUNT(*) FROM vicav_profiles_001 " .
+       $sqlstr = "SELECT DISTINCT lemma, id, sid, COUNT(*) FROM vicav_profiles_001 " .
               "WHERE lemma NOT LIKE '[%]' GROUP BY lemma";   
     } else if ($sru_fcs_params->scanClause === 'sampleText') {
-       $sqlstr = "SELECT DISTINCT sid, id, COUNT(*) FROM vicav_profiles_001 " .
+       $sqlstr = "SELECT DISTINCT sid, id, sid, COUNT(*) FROM vicav_profiles_001 " .
               "WHERE sid LIKE '%_sample_%' GROUP BY sid";           
     } else if ($sru_fcs_params->scanClause === 'geo') {
        $sqlstr = sqlForXPath("vicav_profiles_001", "geo-",
