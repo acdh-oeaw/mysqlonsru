@@ -14,6 +14,8 @@
  * @package mysqlonsru
  */
 
+namespace ACDH\FCSSRU\mysqlonsru;
+
 /**
  * Load configuration and common functions
  */
@@ -151,6 +153,6 @@ function scan() {
     populateScanResult($db, $sqlstr);
 }
 
-getParamsAndSetUpHeader();
+\ACDH\FCSSRU\getParamsAndSetUpHeader();
 processRequest();
 

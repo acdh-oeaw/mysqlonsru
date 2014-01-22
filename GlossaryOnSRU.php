@@ -14,6 +14,8 @@
  * @package mysqlonsru
  */
 
+namespace ACDH\FCSSRU\mysqlonsru;
+
 /**
  * Load configuration and common functions
  */
@@ -88,10 +90,10 @@ function langId2LangName($langId) {
 
     $xmlcode = str_replace("\n\n", "\n", decodecharrefs($line[1]));
 
-    $doc = new DOMDocument();
+    $doc = new \DOMDocument();
     $doc->loadXML($xmlcode);
 
-    $xpath = new DOMXpath($doc);
+    $xpath = new \DOMXpath($doc);
     $elements = $xpath->query("//ptr[@type='example']");
 
     if ((!is_null($elements)) && ($elements->length != 0)) {
@@ -189,7 +191,7 @@ function langId2LangName($langId) {
         );
     }
 
-    populateSearchResult($db, $options, "Glossary for " . $options["query"], 'processSearchResult');
+    populateSearchResult($db, $options, "Glossary for " . $options["query"], '\\ACDH\\FCSSRU\\mysqlonsru\\processSearchResult');
  }
 
   /**
@@ -259,6 +261,6 @@ function scan() {
     
     populateScanResult($db, $sqlstr, $scanClause, $exact);
 }
-getParamsAndSetUpHeader();
+\ACDH\FCSSRU\getParamsAndSetUpHeader();
 $glossTable = $sru_fcs_params->xcontext;
 processRequest();

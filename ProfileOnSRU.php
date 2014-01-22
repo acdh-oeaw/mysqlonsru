@@ -12,6 +12,8 @@
  */
 //error_reporting(E_ALL);
 
+namespace ACDH\FCSSRU\mysqlonsru;
+
 /**
  * Load configuration and common functions
  */
@@ -178,6 +180,6 @@ function scan() {
     populateScanResult($db, $sqlstr);
 }
 
-getParamsAndSetUpHeader();
+\ACDH\FCSSRU\getParamsAndSetUpHeader();
 processRequest();
 

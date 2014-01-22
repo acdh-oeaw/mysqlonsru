@@ -6,6 +6,8 @@
  * @uses $dbConfigfile
  * @package mysqlonsru
  */
+
+namespace ACDH\FCSSRU\mysqlonsru;
 /**
  * Configuration options and function common to all fcs php scripts
  */
@@ -33,7 +35,7 @@ function db_connect() {
     global $password;
     global $database;
 
-    $db = new mysqli($server, $user, $password, $database);
+    $db = new \mysqli($server, $user, $password, $database);
     if ($db->connect_errno) {
         diagnostics(1, 'MySQL Connection Error: Failed to connect to database: (' . $db->connect_errno . ") " . $db->connect_error);
     }
@@ -60,7 +62,7 @@ function decodecharrefs($str) {
     foreach ($replacements as $search => $replace) {
         $str = str_replace($search, $replace, $str);
     }
-    return html_entity_decode_numeric($str);
+    return \ACDH\FCSSRU\html_entity_decode_numeric($str);
 }
 
 /**
@@ -79,7 +81,7 @@ function encodecharrefs($str) {
 //     "&amp;" => "&#amp;",
 //     "&x" => "&#x",
     );
-    $htmlEncodedStr = utf8_character2html_decimal_numeric(utf8_decode($str));
+    $htmlEncodedStr = \ACDH\FCSSRU\utf8_character2html_decimal_numeric(utf8_decode($str));
     foreach ($replacements as $search => $replace) {
         $htmlEncodedStr = str_replace($search, $replace, $htmlEncodedStr);
     }
@@ -225,9 +227,9 @@ function populateExplainResult ($db, $table, $publicName, $indices) {
     $result = $db->query("SELECT entry FROM $table WHERE id = 1");
     if ($result !== false) {
         $line = $result->fetch_array();
-        $xmlDoc = new DOMDocument();
+        $xmlDoc = new \DOMDocument();
         $xmlDoc->loadXML(decodecharrefs($line[0]));
-        $xmlDocXPath = new DOMXPath($xmlDoc);
+        $xmlDocXPath = new \DOMXPath($xmlDoc);
     }
     
     $title = "";
@@ -390,7 +392,7 @@ function populateScanResult($db, $sqlstr, $entry = NULL, $exact = true) {
 
         $tmpl = new vlibTemplate($scanTemplate);
 
-        $terms = new SplFixedArray($result->num_rows);
+        $terms = new \SplFixedArray($result->num_rows);
         $i = 0;
         while (($row = $result->fetch_array()) !== NULL) {
             $term = array(
@@ -449,29 +451,6 @@ function populateScanResult($db, $sqlstr, $entry = NULL, $exact = true) {
         $tmpl->pparse();
     } else {
         diagnostics(1, 'MySQL query error: Query was: ' . $sqlstr);
-    }
-}
-/**
- * Initializes the global object holding the parameters and switches off the
- * header declaration of xml on request. (TODO discuss ???)
- * @uses $sru_fcs_params
- */
-function getParamsAndSetUpHeader() {
-    global $sru_fcs_params;
-    
-    $sru_fcs_params = new SRUWithFCSParameters("lax");
-// TODO: what's this for ???
-    $sru_fcs_params->query = str_replace("|", "#", $sru_fcs_params->query);
-    if ($sru_fcs_params->recordPacking === "") {
-        $sru_fcs_params->recordPacking = "xml";
-    }
-// TODO: why ... ???
-    if ($sru_fcs_params->recordPacking !== "xml") {
-        $sru_fcs_params->recordPacking = "raw";
-    }
-
-    if ($sru_fcs_params->recordPacking === "xml") {
-        header("content-type: text/xml");
     }
 }
 
