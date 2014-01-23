@@ -173,7 +173,7 @@ function scan() {
                      "distinct-values" => true,
            )); 
     } else {
-        diagnostics(51, 'Result set: ' . $sru_fcs_params->scanClause);
+        \ACDH\FCSSRU\diagnostics(51, 'Result set: ' . $sru_fcs_params->scanClause);
         return;
     }
     

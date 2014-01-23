@@ -52,7 +52,7 @@ function langId2LangName($langId) {
     global $glossTable;
     
     if (!isset($glossTable)) {
-        diagnostics(1, 'This script needs to know which resource to use!');
+        \ACDH\FCSSRU\diagnostics(1, 'This script needs to know which resource to use!');
         return; 
     }
     
@@ -234,7 +234,7 @@ function scan() {
     } else if (strpos($sru_fcs_params->scanClause, 'sense') === 0) {
        $sqlstr = sqlForXPath($glossTable, "-quote-", $options); 
     } else {
-        diagnostics(51, 'Result set: ' . $sru_fcs_params->scanClause);
+        \ACDH\FCSSRU\diagnostics(51, 'Result set: ' . $sru_fcs_params->scanClause);
         return;
     }
     

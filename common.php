@@ -37,7 +37,7 @@ function db_connect() {
 
     $db = new \mysqli($server, $user, $password, $database);
     if ($db->connect_errno) {
-        diagnostics(1, 'MySQL Connection Error: Failed to connect to database: (' . $db->connect_errno . ") " . $db->connect_error);
+        \ACDH\FCSSRU\diagnostics(1, 'MySQL Connection Error: Failed to connect to database: (' . $db->connect_errno . ") " . $db->connect_error);
     }
     return $db;
 }
@@ -360,7 +360,7 @@ function populateSearchResult($db, $sql, $description, $processResult = NULL) {
         $tmpl->setloop('hits', $hits);
         $tmpl->pparse();
     } else {
-        diagnostics(1, 'MySQL query error: Query was: ' . $sql);
+        \ACDH\FCSSRU\diagnostics(1, 'MySQL query error: Query was: ' . $sql);
     }
 }
 
@@ -450,7 +450,7 @@ function populateScanResult($db, $sqlstr, $entry = NULL, $exact = true) {
 
         $tmpl->pparse();
     } else {
-        diagnostics(1, 'MySQL query error: Query was: ' . $sqlstr);
+        \ACDH\FCSSRU\diagnostics(1, 'MySQL query error: Query was: ' . $sqlstr);
     }
 }
 
