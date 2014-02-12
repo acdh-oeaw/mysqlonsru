@@ -89,7 +89,7 @@ require_once "common.php";
         $profile_query = get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
     }
     $sampleText_query = get_search_term_for_wildcard_search("sampleText", $sru_fcs_params->query);
-    if (!isset($profile_query) && (stripos($profileTable, "sampletext") !== false)) {
+    if (!isset($sampleText_query) && (stripos($profileTable, "sampletext") !== false)) {
         $sampleText_query = get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
     }
     $geo_query = get_search_term_for_wildcard_search("geo", $sru_fcs_params->query);
@@ -98,7 +98,7 @@ require_once "common.php";
         $profile_query_exact = get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
     }
     $sampleText_query_exact = get_search_term_for_exact_search("sampleText", $sru_fcs_params->query);
-    if (!isset($profile_query_exact) && (stripos($profileTable, "sampletext") !== false)) {
+    if (!isset($sampleText_query_exact) && (stripos($profileTable, "sampletext") !== false)) {
         $sampleText_query_exact = get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
     }
     $geo_query_exact = get_search_term_for_exact_search("geo", $sru_fcs_params->query);
@@ -117,7 +117,7 @@ require_once "common.php";
         return;
     } else if (isset($sampleText_query)) {
         $regionGuess = explode('_', $sampleText_query);
-        populateSampleTextResult("%" . $db->escape_string($sampleText_query) . "_sample%", $db, $regionGuess[0]);
+        populateSampleTextResult("%" . $db->escape_string(strtolower($sampleText_query)) . "%", $db, $regionGuess[0]);
         return;
     } else if (isset($geo_query_exact)){
         $query = $db->escape_string($geo_query_exact);
@@ -143,7 +143,8 @@ require_once "common.php";
                 $sqlstr.= "WHERE lemma LIKE '%" . encodecharrefs($query) . "%'";
            } else if (stripos($profileTable, "sampletext") !== false) {
                 $regionGuess = explode('_', $query);
-                populateSampleTextResult("%" . $db->escape_string(encodecharrefs($query)) . "_sample%", $db, $regionGuess[0]);
+                
+                populateSampleTextResult("%" . $db->escape_string(encodecharrefs(strtolower($query))) . "%", $db, $regionGuess[0]);
                 return;
             }
         }
