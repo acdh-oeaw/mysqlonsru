@@ -224,11 +224,15 @@ function curPageURL() {
 function populateExplainResult ($db, $table, $publicName, $indices) {
     global $explainTemplate;
     
+    // It is assumed that there is a teiHeader for the resource with this well knonwn id
     $result = $db->query("SELECT entry FROM $table WHERE id = 1");
     if ($result !== false) {
         $line = $result->fetch_array();
         $xmlDoc = new \DOMDocument();
         $xmlDoc->loadXML(decodecharrefs($line[0]));
+        // forcebly register default and tei xmlns as tei
+        $xmlDoc->createAttributeNS('http://www.tei-c.org/ns/1.0', 'create-ns');
+        $xmlDoc->createAttributeNS('http://www.tei-c.org/ns/1.0', 'tei:create-ns');
         $xmlDocXPath = new \DOMXPath($xmlDoc);
     }
     
@@ -248,9 +252,10 @@ function populateExplainResult ($db, $table, $publicName, $indices) {
 
         $restrictions = $xmlDocXPath->evaluate('string(//publicationStmt/availability[@status="restricted"]//ref/@target)');
 
-        $description = $xmlDocXPath->evaluate('string(//publicationStmt/pubPlace)') . ', ' .
-                $xmlDocXPath->evaluate('string(//publicationStmt/date)') . '. Edition: ' .
-                $xmlDocXPath->evaluate('string(//editionStmt/edition)') . '.';
+//        $description = $xmlDocXPath->evaluate('string(//publicationStmt/pubPlace)') . ', ' .
+//                $xmlDocXPath->evaluate('string(//publicationStmt/date)') . '. Edition: ' .
+//                $xmlDocXPath->evaluate('string(//editionStmt/edition)') . '.';
+        $description = $xmlDoc->saveXML($xmlDoc->firstChild);
     }
     
     $tmpl = new vlibTemplate($explainTemplate);
