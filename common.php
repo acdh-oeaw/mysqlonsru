@@ -402,7 +402,7 @@ function populateScanResult($db, $sqlstr, $entry = NULL, $exact = true) {
         while (($row = $result->fetch_array()) !== NULL) {
             $term = array(
                 'value' => decodecharrefs($row[0]),
-                'numberOfRecords' => $row[3],
+                'numberOfRecords' => $row["COUNT(*)"],
             );
             // for sorting ignore some punctation marks etc.
             $term["sortValue"] = trim(preg_replace('/[?!()*,.\\-\\/|=]/', '', mb_strtoupper($term["value"], 'UTF-8')));
