@@ -144,7 +144,11 @@ function sqlForXPath($table, $xpath, $options = NULL) {
         }
         if (isset($options["filter"])) {
             $f = $options["filter"];
-            $filter .= " AND ndx.txt != '$f'";
+            if (strpos($f, '%') !== false) {
+                $filter .= " AND ndx.txt NOT LIKE '$f'";
+            } else {
+                $filter .= " AND ndx.txt != '$f'";
+            }
         }
         if (isset($options["justCount"]) && $options["justCount"] === true) {
             $justCount = true;
@@ -224,18 +228,7 @@ function curPageURL() {
 function populateExplainResult ($db, $table, $publicName, $indices) {
     global $explainTemplate;
     
-    // It is assumed that there is a teiHeader for the resource with this well knonwn id
-    $result = $db->query("SELECT entry FROM $table WHERE id = 1");
-    if ($result !== false) {
-        $line = $result->fetch_array();
-        $xmlDoc = new \DOMDocument();
-        $xmlDoc->loadXML(decodecharrefs($line[0]));
-        // forcebly register default and tei xmlns as tei
-        $xmlDoc->createAttributeNS('http://www.tei-c.org/ns/1.0', 'create-ns');
-        $xmlDoc->createAttributeNS('http://www.tei-c.org/ns/1.0', 'tei:create-ns');
-        $xmlDocXPath = new \DOMXPath($xmlDoc);
-    }
-    
+    $xmlDocXPath = getMetadataAsXML($db, $table);
     $title = "";
     $authors = "";
     $restrictions = "";
@@ -255,7 +248,7 @@ function populateExplainResult ($db, $table, $publicName, $indices) {
 //        $description = $xmlDocXPath->evaluate('string(//publicationStmt/pubPlace)') . ', ' .
 //                $xmlDocXPath->evaluate('string(//publicationStmt/date)') . '. Edition: ' .
 //                $xmlDocXPath->evaluate('string(//editionStmt/edition)') . '.';
-        $description = $xmlDoc->saveXML($xmlDoc->firstChild);
+        $description = $xmlDocXPath->document->saveXML($xmlDocXPath->document->firstChild);
     }
     
     $tmpl = new vlibTemplate($explainTemplate);
@@ -269,6 +262,41 @@ function populateExplainResult ($db, $table, $publicName, $indices) {
     $tmpl->setVar('dbRestrictions', $restrictions);
     $tmpl->setVar('dbDescription', $description);
     $tmpl->pparse();
+}
+
+/**
+ * Get the metadata stored in the db as XPaht object which also contains a
+ * representation of the document.
+ * 
+ * @param type $db The db connection
+ * @param type $table The table in the db that should be queried
+ * @return \DOMXPath|null The metadata (teiHeader) as 
+ */
+function getMetadataAsXML($db, $table) {
+    // It is assumed that there is a teiHeader for the resource with this well knonwn id
+    $result = $db->query("SELECT entry FROM $table WHERE id = 1");
+    if ($result !== false) {
+        $line = $result->fetch_array();
+        return getTEIDataAsXMLQueryObject(decodecharrefs($line[0]));
+    } else {
+        return null;
+    }
+}
+
+/**
+ * Turn the input text into a queryable object
+ * 
+ * @param type $xmlText A chunk of TEI XML
+ * @return \DOMXPath The input text consisting of TEI XML as DOMXPath queryable object
+ */
+function getTEIDataAsXMLQueryObject($xmlText) {
+    $xmlDoc = new \DOMDocument();
+    $xmlDoc->loadXML($xmlText);
+    // forcebly register default and tei xmlns as tei
+    $xmlDoc->createAttributeNS('http://www.tei-c.org/ns/1.0', 'create-ns');
+    $xmlDoc->createAttributeNS('http://www.tei-c.org/ns/1.0', 'tei:create-ns');
+    $xmlDocXPath = new \DOMXPath($xmlDoc);
+    return $xmlDocXPath;
 }
 /**
  * Execute a search and return the result using the $responseTemplate
@@ -296,10 +324,17 @@ function populateSearchResult($db, $sql, $description, $processResult = NULL) {
     
     $baseURL = curPageURL();
     
+    $dbTeiHeaderXML = null;
+    $wantTitle = (stripos($sru_fcs_params->xdataview, 'title') !== false);
+    $wantMetadata = (stripos($sru_fcs_params->xdataview, 'metadata') !== false);
+
     $extraCountSql = false;
     if (is_array($sql)) {
         $options = $sql;
         $sql = sqlForXPath("", "", $options);
+        if ($wantMetadata || $wantTitle) {
+            $dbTeiHeaderXML = getMetadataAsXML($db, $options['dbtable']);
+        }
         if (isset($options["maximumRecords"])) {
             $options["startRecord"] = NULL;
             $options["maximumRecords"] = NULL;
@@ -310,6 +345,11 @@ function populateSearchResult($db, $sql, $description, $processResult = NULL) {
                 $line = $result->fetch_row();
                 $extraCountSql = $line[0];
             }
+        }
+    } else if ($wantMetadata || $wantTitle) {
+        $dbtable = preg_filter('/.* FROM (\\w+) .*/', '$1', $sql);
+        if ($dbtable !== false) {
+            $dbTeiHeaderXML = getMetadataAsXML($db, $dbtable);
         }
     }
     
@@ -331,16 +371,17 @@ function populateSearchResult($db, $sql, $description, $processResult = NULL) {
         $tmpl->setVar('transformedQuery', $sql);
         $tmpl->setVar('baseURL', $baseURL);
         $tmpl->setVar('xcontext', $sru_fcs_params->xcontext);
-        $tmpl->setVar('xdataview', "full");
+        $tmpl->setVar('xdataview', $sru_fcs_params->xdataview);
         // this isn't generated by fcs.xqm either ?!
         $nextRecordPosition = 0;
         $tmpl->setVar('nextRecordPosition', $nextRecordPosition);
         $tmpl->setVar('res', '1');
 
         $hits = array();
-        $hitsMetaData = array();
-        array_push($hitsMetaData, array('key' => 'copyright', 'value' => 'ICLTT'));
-        array_push($hitsMetaData, array('key' => 'content', 'value' => $description));
+        $hitsMetaData = null;
+//        $hitsMetaData = array();
+//        array_push($hitsMetaData, array('key' => 'copyright', 'value' => 'ICLTT'));
+//        array_push($hitsMetaData, array('key' => 'content', 'value' => $description));
 
         while (($line = $result->fetch_row()) !== NULL) {
             //$id = $line[0];
@@ -349,13 +390,32 @@ function populateSearchResult($db, $sql, $description, $processResult = NULL) {
             } else {
                 $content = $line[1];
             }
+            
+            $decodedContent = decodecharrefs($content);
+            $title = "";
+            
+            if ($wantTitle) {               
+                $contentXPath = getTEIDataAsXMLQueryObject($decodedContent);
+                foreach ($contentXPath->query('//teiHeader/fileDesc/titleStmt/title') as $node) {
+                    $title .= $node->textContent;
+                }
+                if ($title === "") {
+                    foreach ($dbTeiHeaderXML->query('//teiHeader/fileDesc/titleStmt/title') as $node) {
+                        $title .= $node->textContent;
+                    }
+                }
+            }
 
             array_push($hits, array(
                 'recordSchema' => $sru_fcs_params->recordSchema,
                 'recordPacking' => $sru_fcs_params->recordPacking,
                 'queryUrl' => $baseURL,
-                'content' => decodecharrefs($content),
+                'content' => $decodedContent,
+                'wantMetadata' => $wantMetadata,
+                'wantTitle' => $wantTitle,
+                'title' => $title,
                 'hitsMetaData' => $hitsMetaData,
+                'hitsTeiHeader' => isset($dbTeiHeaderXML) ? $dbTeiHeaderXML->document->saveXML($dbTeiHeaderXML->document->firstChild) : null,
                 // TODO: replace this by sth. like $sru_fcs_params->http_build_query
                 'queryUrl' => '?' . htmlentities(http_build_query($_GET)),
             ));
