@@ -228,27 +228,32 @@ function curPageURL() {
 function populateExplainResult ($db, $table, $publicName, $indices) {
     global $explainTemplate;
     
-    $xmlDocXPath = getMetadataAsXML($db, $table);
+    $teiHeaderXML = getMetadataAsXML($db, $table);
     $title = "";
     $authors = "";
     $restrictions = "";
     $description = "";
-    if (isset($xmlDocXPath)) {
-        $title = $xmlDocXPath->evaluate('string(//titleStmt/title)');
+    if (isset($teiHeaderXML)) {
+        $title = $teiHeaderXML->evaluate('string(//titleStmt/title)');
 
-        $authorsNodes = $xmlDocXPath->query('//fileDesc/author');
+        $authorsNodes = $teiHeaderXML->query('//fileDesc/author');
         $authors = "";
         foreach ($authorsNodes as $author) {
             $authors .= "; " . $author->nodeValue;
         }
         $authors = substr($authors, 2);
 
-        $restrictions = $xmlDocXPath->evaluate('string(//publicationStmt/availability[@status="restricted"]//ref/@target)');
+        $restrictions = $teiHeaderXML->evaluate('string(//publicationStmt/availability[@status="restricted"]//ref/@target)');
 
 //        $description = $xmlDocXPath->evaluate('string(//publicationStmt/pubPlace)') . ', ' .
 //                $xmlDocXPath->evaluate('string(//publicationStmt/date)') . '. Edition: ' .
 //                $xmlDocXPath->evaluate('string(//editionStmt/edition)') . '.';
-        $description = $xmlDocXPath->document->saveXML($xmlDocXPath->document->firstChild);
+        $frontMatterXML = getFrontMatterAsXML($db, $table);
+        if ($frontMatterXML !== null) {
+            $description = $frontMatterXML->document->saveXML($frontMatterXML->document->firstChild);
+        } else {
+            $description = $teiHeaderXML->document->saveXML($teiHeaderXML->document->firstChild);
+        }
     }
     
     $tmpl = new vlibTemplate($explainTemplate);
@@ -273,14 +278,42 @@ function populateExplainResult ($db, $table, $publicName, $indices) {
  * @return \DOMXPath|null The metadata (teiHeader) as 
  */
 function getMetadataAsXML($db, $table) {
-    // It is assumed that there is a teiHeader for the resource with this well knonwn id
-    $result = $db->query("SELECT entry FROM $table WHERE id = 1");
+    // It is assumed that there is a teiHeader for the resource with this well knonwn id 1
+    return getWellKnownTEIPartAsXML($db, $table, 1);
+}
+
+/**
+ * Get the front matter from the given db
+ * 
+ * @param type $db The db connection
+ * @param type $table The table in the db that should be queried
+ * @return \DOMXPath|null The front matter
+ */
+function getFrontMatterAsXML($db, $table) {
+    // It is assumed that there is a front part for the resource with this well knonwn id 5
+    return getWellKnownTEIPartAsXML($db, $table, 5);
+}
+
+/**
+ * Get some TEI part by well known id
+ * 
+ * @param type $db The db connectio
+ * @param type $table The table in the db that should be queried
+ * @param type $id The well known id of the TEI part to fetch 
+ * @return \DOMXPath|null Some TEI-XML, null if the id is not in teh db
+ */
+function getWellKnownTEIPartAsXML ($db, $table, $id) {
+    $result = $db->query("SELECT entry FROM $table WHERE id = $id");
     if ($result !== false) {
         $line = $result->fetch_array();
-        return getTEIDataAsXMLQueryObject(decodecharrefs($line[0]));
+        if (is_array($line) && trim($line[0]) !== "") {
+            return getTEIDataAsXMLQueryObject(decodecharrefs($line[0]));
+        } else {
+            return null;
+        }
     } else {
         return null;
-    }
+    } 
 }
 
 /**
