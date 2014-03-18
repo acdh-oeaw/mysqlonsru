@@ -77,7 +77,11 @@ require_once "common.php";
     // HACK, sql parser? cql.php = GPL -> this GPL too
     $sru_fcs_params->query = str_replace("\"", "", $sru_fcs_params->query);
     $options = array("distinct-values" => false,
-       "dbtable" => "vicav_bibl_002",);
+       "dbtable" => "vicav_bibl_002",
+       "xpath-filters" => array (
+         "-change-f-status-" => "released",
+         ),
+       );
     $options["startRecord"] = $sru_fcs_params->startRecord;
     $options["maximumRecords"] = $sru_fcs_params->maximumRecords;
     $profile_query = get_search_term_for_wildcard_search("id", $sru_fcs_params->query);
@@ -139,11 +143,17 @@ function scan() {
        $sqlstr = sqlForXPath("vicav_bibl_002", "biblStruct-xml:id",
                array("filter" => "-",
                      "distinct-values" => true,
+                     "xpath-filters" => array (
+                        "-change-f-status-" => "released",
+                        ),
                    ));     
     } else if ($sru_fcs_params->scanClause === 'vicavTaxonomy') {
        $sqlstr = sqlForXPath("vicav_bibl_002", "-index-term-vicavTaxonomy-",
                array("filter" => "-",
                      "distinct-values" => true,
+                     "xpath-filters" => array (
+                        "-change-f-status-" => "released",
+                        ),
                    )); 
     } else {
         \ACDH\FCSSRU\diagnostics(51, 'Result set: ' . $sru_fcs_params->scanClause);

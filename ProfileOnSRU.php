@@ -69,6 +69,14 @@ require_once "common.php";
             'scan' => 'true',
             'sort' => 'false',
         ));
+    } else if (stripos($profileTable, "tools") !== false) {
+        array_push($maps, array(
+            'title' => 'VICAV Tools',
+            'name' => 'toolsText',
+            'search' => 'true',
+            'scan' => 'true',
+            'sort' => 'false',
+        ));
     }
     populateExplainResult($db, "$profileTable", "$profileTable", $maps);
  }
@@ -117,6 +125,14 @@ require_once "common.php";
     if (!isset($metaText_query) && (stripos($profileTable, "meta") !== false)) {
         $metaText_query = get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
     }
+    $toolsText_query_exact = get_search_term_for_exact_search("toolsText", $sru_fcs_params->query);
+    if (!isset($toolsText_query_exact) && (stripos($profileTable, "tools") !== false)) {
+        $toolsText_query_exact = get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
+    }
+    $toolsText_query = get_search_term_for_wildcard_search("toolsText", $sru_fcs_params->query);
+    if (!isset($toolsText_query) && (stripos($profileTable, "tools") !== false)) {
+        $toolsText_query = get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
+    }
     $geo_query_exact = get_search_term_for_exact_search("geo", $sru_fcs_params->query);
     // there is no point in having a fuzzy geo search yet so treat it as exact always
     if (!isset($geo_query_exact)) {
@@ -151,6 +167,10 @@ require_once "common.php";
            $query = $db->escape_string($metaText_query_exact);
        } else if (isset($metaText_query)) {
            $query = $db->escape_string($metaText_query);
+       } else if (isset($toolsText_query_exact)) {
+           $query = $db->escape_string($toolsText_query_exact);
+       } else if (isset($toolsText_query)) {
+           $query = $db->escape_string($toolsText_query);
        } else {
            $query = $db->escape_string($sru_fcs_params->query);
        }
@@ -159,7 +179,9 @@ require_once "common.php";
        if (isset($profile_query_exact) || isset($metaText_query_exact)) {
           $sqlstr.= "WHERE lemma = '" . encodecharrefs($query) . "'"; 
        } else {
-           if ((stripos($profileTable, "profile") !== false) || (stripos($profileTable, "meta") !== false)) {
+           if ((stripos($profileTable, "profile") !== false) ||
+               (stripos($profileTable, "meta") !== false) ||
+               (stripos($profileTable, "tools") !== false)) {
                 $sqlstr.= "WHERE lemma LIKE '%" . encodecharrefs($query) . "%'";
            } else if (stripos($profileTable, "sampletext") !== false) {
                 $regionGuess = explode('_', $query);
@@ -219,6 +241,13 @@ function scan() {
               "WHERE sid LIKE '%_sample_%' GROUP BY sid";           
     } else if ($sru_fcs_params->scanClause === 'metaText' ||
         ((stripos($profileTable, "meta") !== false) &&
+        ($sru_fcs_params->scanClause === '' ||
+         $sru_fcs_params->scanClause === 'serverChoice' ||
+         $sru_fcs_params->scanClause === 'cql.serverChoice'))) {
+       $sqlstr = "SELECT DISTINCT lemma, id, sid, COUNT(*) FROM $profileTable " .
+              "WHERE lemma NOT LIKE '[%]' GROUP BY lemma";           
+    } else if ($sru_fcs_params->scanClause === 'toolsText' ||
+        ((stripos($profileTable, "tools") !== false) &&
         ($sru_fcs_params->scanClause === '' ||
          $sru_fcs_params->scanClause === 'serverChoice' ||
          $sru_fcs_params->scanClause === 'cql.serverChoice'))) {
