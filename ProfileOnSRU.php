@@ -152,7 +152,6 @@ require_once "common.php";
         populateSampleTextResult("%" . $db->escape_string(strtolower($sampleText_query)) . "%", $db, $regionGuess[0]);
         return;
     } else if (isset($geo_query_exact)){
-        $query = $db->escape_string($geo_query_exact);
         $description = "Arabic dialect profile for the coordinates $geo_query_exact";
         $options["xpath"] = "geo-";
         $options["query"] = $geo_query_exact;
@@ -184,8 +183,7 @@ require_once "common.php";
                (stripos($profileTable, "tools") !== false)) {
                 $sqlstr.= "WHERE lemma LIKE '%" . encodecharrefs($query) . "%'";
            } else if (stripos($profileTable, "sampletext") !== false) {
-                $regionGuess = explode('_', $query);
-                
+                $regionGuess = explode('_', $query);                
                 populateSampleTextResult("%" . $db->escape_string(encodecharrefs(strtolower($query))) . "%", $db, $regionGuess[0]);
                 return;
             }
