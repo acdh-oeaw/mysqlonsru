@@ -154,7 +154,9 @@ function langId2LangName($langId) {
     
     // HACK, sql parser? cql.php = GPL -> this GPL too
     $sru_fcs_params->query = str_replace("\"", "", $sru_fcs_params->query);
-    $options = array("distinct-values" => false,);
+    $options = array("filter" => "-",
+                     "distinct-values" => false,
+        );
     $options["startRecord"] = $sru_fcs_params->startRecord;
     $options["maximumRecords"] = $sru_fcs_params->maximumRecords;
     $lemma_query = get_search_term_for_wildcard_search("entry", $sru_fcs_params->query);
@@ -216,7 +218,8 @@ function scan() {
     }
     
     $sqlstr = '';
-    $options = array("filter" => "-",
+    $options = array(//"filter" => "-"
+                     "filter" => "%_example_%",
                      "distinct-values" => true,
                      "query" => "", // the database can't sort or filter due to encoding
                    );
