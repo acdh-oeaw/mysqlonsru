@@ -11,7 +11,6 @@
  * @package mysqlonsru
  */
 //error_reporting(E_ALL);
-namespace ACDH\FCSSRU\mysqlonsru;
 
 /**
  * Load configuration and common functions
@@ -29,34 +28,34 @@ require_once "common.php";
  */
  function explain()
  {
-    global $sampleTable;
-    
-    $db = db_connect();
-    if ($db->connect_errno) {
-        return;
-    }
+    global $explainTemplate;
+
+    $tmpl = new vlibTemplate($explainTemplate);
     
     $maps = array();
     
-    if (stripos($sampleTable, "sampletext") !== false) {
-        array_push($maps, array(
-            'title' => 'VICAV Profile Sample Text',
-            'name' => 'sampleText',
-            'search' => 'true',
-            'scan' => 'true',
-            'sort' => 'false',
-        ));
-    } else if (stripos($sampleTable, "lingfeatures") !== false) {
-        array_push($maps, array(
-            'title' => 'VICAV Linguistic Features Samples',
-            'name' => 'lingfeature',
-            'search' => 'true',
-            'scan' => 'true',
-            'sort' => 'false',
-        ));
-    }
+    array_push($maps, array(
+        'title' => 'VICAV Profile Sample Text',
+        'name' => 'sampleText',
+        'search' => 'true',
+        'scan' => 'true',
+        'sort' => 'false',
+    ));
     
-    populateExplainResult($db, "$sampleTable", "$sampleTable", $maps);
+    array_push($maps, array(
+        'title' => 'VICAV Sample Text for Geo Coordinates',
+        'name' => 'geo',
+        'search' => 'true',
+        'scan' => 'true',
+        'sort' => 'false',
+    ));
+    
+    $tmpl->setLoop('maps', $maps);
+    
+    $tmpl->setVar('hostid', htmlentities($_SERVER["HTTP_HOST"]));
+    $tmpl->setVar('database', 'vicav-text');
+    $tmpl->setVar('databaseTitle', 'VICAV Profile');
+    $tmpl->pparse();
  }
 
  /**
@@ -67,66 +66,34 @@ require_once "common.php";
   * @uses $baseURL
   */
  function search() {
-    global $sampleTable;
     global $sru_fcs_params;
 
     $db = db_connect();
     if ($db->connect_errno) {
         return;
-    }    
+    }
     // HACK, sql parser? cql.php = GPL -> this GPL too
     $sru_fcs_params->query = str_replace("\"", "", $sru_fcs_params->query);
+    $query = "";
     $description = "";
-    $sampleText_query_exact = get_search_term_for_exact_search("sampleText", $sru_fcs_params->query);
-    if (!isset($sampleText_query_exact) && (stripos($sampleTable, "sampletext") !== false)) {
-        $sampleText_query_exact = get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
+    $sampleText_query = preg_filter('/sampleText *(=|any) *(.*)/', '$2', $sru_fcs_params->query);
+    if (!isset($sampleText_query)) {
+        $sampleText_query = preg_filter('/(cql\.)?serverChoice *(=|any) *(.*)/', '$3', $sru_fcs_params->query);
     }
-    $sampleText_query = get_search_term_for_wildcard_search("sampleText", $sru_fcs_params->query);
-    if (!isset($sampleText_query) && (stripos($sampleTable, "sampletext") !== false)) {
-        $sampleText_query = get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
-        if (!isset($sampleText_query)) {
-            $sampleText_query = $sru_fcs_params->query;
-        }         
-    }
-    $lingfeatureText_query_exact = get_search_term_for_exact_search("lingfeature", $sru_fcs_params->query);
-    if (!isset($lingfeatureText_query_exact) && (stripos($sampleTable, "lingfeatures") !== false)) {
-        $lingfeatureText_query_exact = get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
-    }
-    $lingfeatureText_query = get_search_term_for_wildcard_search("lingfeature", $sru_fcs_params->query);
-    if (!isset($lingfeatureText_query) && (stripos($sampleTable, "lingfeatures") !== false)) {
-        $lingfeatureText_query = get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
-        if (!isset($lingfeatureText_query)) {
-            $lingfeatureText_query = $sru_fcs_params->query;
-        }
-    }
-    $options = array (
-       "dbtable" => "$sampleTable",
-       "distinct-values" => false,
-    );     
-    if (isset($sampleText_query_exact)) {
-        $description = "Arabic sample text $sampleText_query_exact";
-        $options["xpath"] = "TEI-text-body-div-head-";
-        $options["query"] = $sampleText_query_exact;
-        $options["exact"] = true;
-        $sqlstr = $options;
-    } else if (isset($sampleText_query)) {
-        $description = "Arabic sample text $sampleText_query";
-        $options["xpath"] = "TEI-text-body-div-head-";
-        $options["query"] = $sampleText_query;
-        $options["exact"] = false;
-        $sqlstr = $options;
-    } else if (isset($lingfeatureText_query_exact)) {
-        $description = "Arabic lingfeature $lingfeatureText_query_exact";
-        $options["xpath"] = "TEI-text-body-div-head-";
-        $options["query"] = $lingfeatureText_query_exact;
-        $options["exact"] = true;
-        $sqlstr = $options;
-    } else if (isset($lingfeatureText_query)) {
-        $description = "Arabic lingfeature $lingfeatureText_query";
-        $options["xpath"] = "TEI-text-body-div-head-";
-        $options["query"] = $lingfeatureText_query;
-        $options["exact"] = false;
-        $sqlstr = $options;
+    $geo_query = preg_filter('/geo *(=|any) *(.*)/', '$2', $sru_fcs_params->query);
+    if (isset($geo_query)){
+        $query = $db->escape_string($geo_query);
+        $description = "Arabic sample text for the coordinates $query";
+        $sqlstr = sqlForXPath("vicav_profiles_001", "geo-", array("query" => $query));
+    } else {
+       if (isset($sampleText_query)) {
+           $query = $db->escape_string($sampleText_query);
+       } else {
+           $query = $db->escape_string($sru_fcs_params->query);
+       }
+       $description = "Arabic dialect sample text for the region of $query";
+        $sqlstr = "SELECT DISTINCT sid, entry FROM vicav_profiles_001 ";
+        $sqlstr.= "WHERE sid = '$query'";
     }
     populateSearchResult($db, $sqlstr, $description);
 }
@@ -143,7 +110,6 @@ require_once "common.php";
  */
 function scan() {
     global $sru_fcs_params;
-    global $sampleTable;
 
     $db = db_connect();
     if ($db->connect_errno) {
@@ -152,33 +118,21 @@ function scan() {
     
     $sqlstr = '';
     
-    if ($sru_fcs_params->scanClause === 'sampleText' ||
-        ((stripos($sampleTable, "sample") !== false) &&
-        ($sru_fcs_params->scanClause === '' ||
-         $sru_fcs_params->scanClause === 'serverChoice' ||
-         $sru_fcs_params->scanClause === 'cql.serverChoice'))) {
-       $sqlstr = sqlForXPath($sampleTable, "TEI-text-body-div-head-", array(
-           "distinct-values" => true,
-       ));
-    } else if ($sru_fcs_params->scanClause === 'lingfeature' ||
-        ((stripos($sampleTable, "lingfeatures") !== false) &&
-        ($sru_fcs_params->scanClause === '' ||
-         $sru_fcs_params->scanClause === 'serverChoice' ||
-         $sru_fcs_params->scanClause === 'cql.serverChoice'))) {
-       $sqlstr = sqlForXPath($sampleTable, "TEI-text-body-div-head-", array(
-           "distinct-values" => true,
-       ));
-         
-//    } else if ($sru_fcs_params->scanClause === 'geo') {
-//       $sqlstr = sqlForXPath($sampleTable, "geo-"); 
+    if ($sru_fcs_params->scanClause === '' ||
+        $sru_fcs_params->scanClause === 'sampleText' ||
+        $sru_fcs_params->scanClause === 'serverChoice' ||
+        $sru_fcs_params->scanClause === 'cql.serverChoice') {
+       $sqlstr = "SELECT DISTINCT sid, id FROM vicav_profiles_001 " .
+              "WHERE sid LIKE '%_sample_%'"; 
+    } else if ($sru_fcs_params->scanClause === 'geo') {
+       $sqlstr = sqlForXPath("vicav_profiles_001", "geo-"); 
     } else {
-        \ACDH\FCSSRU\diagnostics(51, 'Result set: ' . $sru_fcs_params->scanClause);
+        diagnostics(51, 'Result set: ' . $sru_fcs_params->scanClause);
         return;
     }
     
     populateScanResult($db, $sqlstr);
 }
 
-\ACDH\FCSSRU\getParamsAndSetUpHeader();
-$sampleTable = $sru_fcs_params->xcontext;
+getParamsAndSetUpHeader();
 processRequest();
