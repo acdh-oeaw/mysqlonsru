@@ -56,7 +56,23 @@ require_once "common.php";
         'scan' => 'true',
         'sort' => 'false',
     ));
-    
+
+    array_push($maps, array(
+        'title' => 'VICAV Bibliography by author',
+        'name' => 'author',
+        'search' => 'true',
+        'scan' => 'true',
+        'sort' => 'false',
+    ));
+
+    array_push($maps, array(
+        'title' => 'VICAV Bibliography by date published',
+        'name' => 'imprintDate',
+        'search' => 'true',
+        'scan' => 'true',
+        'sort' => 'false',
+    ));
+        
     populateExplainResult($db, "vicav_bibl_002", "vicav-bib", $maps);
  }
  
@@ -88,12 +104,15 @@ require_once "common.php";
     if (!isset($profile_query)) {
         $profile_query = get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
     }
-    $vicavTaxonomy_query = get_search_term_for_wildcard_search("vicavTaxonomy", $sru_fcs_params->query);
     $profile_query_exact = get_search_term_for_exact_search("id", $sru_fcs_params->query);
     if (!isset($profile_query_exact)) {
         $profile_query_exact = get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
     }
+    $vicavTaxonomy_query = get_search_term_for_wildcard_search("vicavTaxonomy", $sru_fcs_params->query);
     $vicavTaxonomy_query_exact = get_search_term_for_exact_search("vicavTaxonomy", $sru_fcs_params->query);
+    $author_query = get_search_term_for_wildcard_search("author", $sru_fcs_params->query);
+    $author_query_exact = get_search_term_for_exact_search("author", $sru_fcs_params->query);
+    $imprintDate_query_exact = get_search_term_for_exact_search("imprintDate", $sru_fcs_params->query);
     
     if (isset($vicavTaxonomy_query_exact)){
         $options["query"] = $db->escape_string($vicavTaxonomy_query_exact);       
@@ -102,7 +121,18 @@ require_once "common.php";
     } else if (isset($vicavTaxonomy_query)) {
         $options["query"] = $db->escape_string($vicavTaxonomy_query);       
         $options["xpath"] = "-index-term-vicavTaxonomy-";        
-    } else{
+    } else if (isset($author_query_exact)){
+        $options["query"] = $db->escape_string($author_query_exact);       
+        $options["xpath"] = "-monogr-author-|-analytic-author-";
+        $options["exact"] = true;
+    } else if (isset($author_query)) {
+        $options["query"] = $db->escape_string($author_query);       
+        $options["xpath"] = "-monogr-author-|-analytic-author-";        
+    } else if (isset($imprintDate_query_exact)){
+        $options["query"] = $db->escape_string($imprintDate_query_exact);       
+        $options["xpath"] = "-imprint-date-";
+        $options["exact"] = true;
+    } else  {
        if (isset($profile_query_exact)) {
            $options["query"] = $db->escape_string($profile_query_exact);
            $options["exact"] = true;
@@ -149,6 +179,22 @@ function scan() {
                    ));     
     } else if ($sru_fcs_params->scanClause === 'vicavTaxonomy') {
        $sqlstr = sqlForXPath("vicav_bibl_002", "-index-term-vicavTaxonomy-",
+               array("filter" => "-",
+                     "distinct-values" => true,
+                     "xpath-filters" => array (
+                        "-change-f-status-" => "released",
+                        ),
+                   )); 
+    } else if ($sru_fcs_params->scanClause === 'author') {
+       $sqlstr = sqlForXPath("vicav_bibl_002", "-monogr-author-|-analytic-author-",
+               array("filter" => "-",
+                     "distinct-values" => true,
+                     "xpath-filters" => array (
+                        "-change-f-status-" => "released",
+                        ),
+                   )); 
+    } else if ($sru_fcs_params->scanClause === 'imprintDate') {
+       $sqlstr = sqlForXPath("vicav_bibl_002", "-imprint-date-",
                array("filter" => "-",
                      "distinct-values" => true,
                      "xpath-filters" => array (

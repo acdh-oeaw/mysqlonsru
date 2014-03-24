@@ -123,6 +123,7 @@ function sqlForXPath($table, $xpath, $options = NULL) {
     $query = "";
     $filter = "";
     $groupCount = "";
+    $likeXpath = "";
     $justCount = false;
     if (isset($options) && is_array($options)) {
         if (isset($options["dbtable"])) {
@@ -130,7 +131,15 @@ function sqlForXPath($table, $xpath, $options = NULL) {
         }
         if (isset($options["xpath"])) {
             $xpath = $options["xpath"];
-        }        
+        }
+        if ($xpath !== "") {
+            $likeXpath .= "(";
+            foreach (explode('|', $xpath) as $xpath) {
+                $likeXpath .= "ndx.xpath LIKE '%" . $xpath . "' OR ";
+            }
+            $likeXpath = substr($likeXpath , 0, strrpos($likeXpath, ' OR '));
+            $likeXpath .= ')';
+        }       
         if (isset($options["show-lemma"]) && $options["show-lemma"] === true) {
             $lemma = ", base.lemma";
         }
@@ -175,7 +184,7 @@ function sqlForXPath($table, $xpath, $options = NULL) {
     return "SELECT" . ($justCount ? " COUNT(*) " : " ndx.txt, base.entry, base.sid" . $lemma . $groupCount) .
             " FROM " . $tableOrPrefilter . " AS base " .
             "INNER JOIN " . $table . "_ndx AS ndx ON base.id = ndx.id " .
-            "WHERE ndx.xpath LIKE '%" . $xpath . "'".$query.$filter;            
+            "WHERE ".$likeXpath.$query.$filter;            
 }
 
 function genereatePrefilterSql($table, $options) {
