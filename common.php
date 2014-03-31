@@ -88,11 +88,23 @@ function encodecharrefs($str) {
     return $htmlEncodedStr;
 }
 
-function _and($string1, $string2) {
-    if ($string1 !== "") {
-        return ($string1." AND ".$string2);
-    } else {
+function _or($string1, $string2) {
+    if (($string1 !== "") and ($string2 !== "")) {
+        return ($string1." OR ".$string2);
+    } else if ($string2 !== "") {
         return $string2;
+    } else {
+        return $string1;
+    }
+}
+
+function _and($string1, $string2) {
+    if (($string1 !== "") and ($string2 !== "")) {
+        return ($string1." AND ".$string2);
+    } else if ($string2 !== "") {
+        return $string2;
+    } else {
+        return $string1;
     }
 }
 
@@ -130,6 +142,7 @@ function sqlForXPath($table, $xpath, $options = NULL) {
     $lemma = "";
     $query = "";
     $filter = "";
+    $groupAndLimit = "";
     $groupCount = "";
     $likeXpath = "";
     $justCount = false;
@@ -172,15 +185,15 @@ function sqlForXPath($table, $xpath, $options = NULL) {
         }
         if (isset($options["distinct-values"]) && $options["distinct-values"] === true) {
             $groupCount = ", COUNT(*)";
-            $filter .= " GROUP BY ndx.txt ORDER BY ndx.txt";
+            $groupAndLimit .= " GROUP BY ndx.txt ORDER BY ndx.txt";
         } else if ($justCount !== true) {
             $groupCount = ", COUNT(*)";
-            $filter .= " GROUP BY base.sid";
+            $groupAndLimit .= " GROUP BY base.sid";
         }
         if (isset($options["startRecord"])) {
-            $filter .= " LIMIT " . ($options["startRecord"] - 1);
+            $groupAndLimit .= " LIMIT " . ($options["startRecord"] - 1);
             if (isset($options["maximumRecords"])) {
-                $filter .= ", " . $options["maximumRecords"];
+                $groupAndLimit .= ", " . $options["maximumRecords"];
             }
         }
         if (isset($options["xpath-filters"])) {
@@ -192,7 +205,7 @@ function sqlForXPath($table, $xpath, $options = NULL) {
     return "SELECT" . ($justCount ? " COUNT(*) " : " ndx.txt, base.entry, base.sid" . $lemma . $groupCount) .
             " FROM " . $tableOrPrefilter . " AS base " .
             "INNER JOIN " . $table . "_ndx AS ndx ON base.id = ndx.id " .
-            "WHERE "._and($likeXpath, _and($query, $filter));            
+            "WHERE "._and($likeXpath, _and($query, $filter)).$groupAndLimit;            
 }
 
 function genereatePrefilterSql($table, $options) {
