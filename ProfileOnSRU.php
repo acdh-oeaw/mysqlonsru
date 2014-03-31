@@ -78,6 +78,15 @@ require_once "common.php";
             'sort' => 'false',
         ));
     }
+        
+    array_push($maps, array(
+        'title' => 'Resource Fragement PID',
+        'name' => 'rfpid',
+        'search' => 'true',
+        'scan' => 'true',
+        'sort' => 'false',
+    ));
+    
     populateExplainResult($db, "$profileTable", "$profileTable", $maps);
  }
 
@@ -143,7 +152,17 @@ require_once "common.php";
        "query" => $query,
        "distinct-values" => false,
     );
-    if (isset($sampleText_query_exact)) {
+ 
+    $rfpid_query = get_search_term_for_wildcard_search("rfpid", $sru_fcs_params->query);
+    $rfpid_query_exact = get_search_term_for_exact_search("rfpid", $sru_fcs_params->query);
+    if (!isset($rfpid_query_exact)) {
+        $rfpid_query_exact = $rfpid_query;
+    }
+    if (isset($rfpid_query_exact)) {
+        $query = $db->escape_string($rfpid_query_exact);
+        populateSearchResult($db, "SELECT id, entry, sid, 1 FROM $profileTable WHERE id=$query", "Resource Fragment for pid");
+        return;
+    } else if (isset($sampleText_query_exact)) {
         $regionGuess = explode('_', $sampleText_query_exact);
         populateSampleTextResult($db->escape_string($sampleText_query_exact), $db, $regionGuess[0]);
         return;
@@ -223,6 +242,11 @@ function scan() {
     
     $sqlstr = '';
     
+    if ($sru_fcs_params->scanClause === 'rfpid') {
+       $sqlstr = "SELECT id, entry, sid FROM $profileTable ORDER BY CAST(id AS SIGNED)";
+       populateScanResult($db, $sqlstr, NULL, true, true);
+       return;
+    }
     if ($sru_fcs_params->scanClause === 'profile' ||
         ((stripos($profileTable, "profile") !== false) &&
         ($sru_fcs_params->scanClause === '' ||

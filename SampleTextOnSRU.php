@@ -55,6 +55,14 @@ require_once "common.php";
             'sort' => 'false',
         ));
     }
+        
+    array_push($maps, array(
+        'title' => 'Resource Fragement PID',
+        'name' => 'rfpid',
+        'search' => 'true',
+        'scan' => 'true',
+        'sort' => 'false',
+    ));
     
     populateExplainResult($db, "$sampleTable", "$sampleTable", $maps);
  }
@@ -103,7 +111,18 @@ require_once "common.php";
        "dbtable" => "$sampleTable",
        "distinct-values" => false,
     );     
-    if (isset($sampleText_query_exact)) {
+    
+ 
+    $rfpid_query = get_search_term_for_wildcard_search("rfpid", $sru_fcs_params->query);
+    $rfpid_query_exact = get_search_term_for_exact_search("rfpid", $sru_fcs_params->query);
+    if (!isset($rfpid_query_exact)) {
+        $rfpid_query_exact = $rfpid_query;
+    }
+    if (isset($rfpid_query_exact)) {
+        $query = $db->escape_string($rfpid_query_exact);
+        populateSearchResult($db, "SELECT id, entry, sid, 1 FROM $sampleTable WHERE id=$query", "Resource Fragment for pid");
+        return;
+    } else if (isset($sampleText_query_exact)) {
         $description = "Arabic sample text $sampleText_query_exact";
         $options["xpath"] = "TEI-text-body-div-head-";
         $options["query"] = $sampleText_query_exact;
@@ -152,6 +171,11 @@ function scan() {
     
     $sqlstr = '';
     
+    if ($sru_fcs_params->scanClause === 'rfpid') {
+       $sqlstr = "SELECT id, entry, sid FROM $sampleTable ORDER BY CAST(id AS SIGNED)";
+       populateScanResult($db, $sqlstr, NULL, true, true);
+       return;
+    }
     if ($sru_fcs_params->scanClause === 'sampleText' ||
         ((stripos($sampleTable, "sample") !== false) &&
         ($sru_fcs_params->scanClause === '' ||

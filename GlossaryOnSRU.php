@@ -82,6 +82,14 @@ function langId2LangName($langId) {
         'sort' => 'false',
     ));
         
+    array_push($maps, array(
+        'title' => 'Resource Fragement PID',
+        'name' => 'rfpid',
+        'search' => 'true',
+        'scan' => 'true',
+        'sort' => 'false',
+    ));
+        
     populateExplainResult($db, $glossTable, $glossTable, $maps);
  }
 
@@ -154,7 +162,9 @@ function langId2LangName($langId) {
     
     // HACK, sql parser? cql.php = GPL -> this GPL too
     $sru_fcs_params->query = str_replace("\"", "", $sru_fcs_params->query);
-    $options = array("distinct-values" => false,);
+    $options = array("filter" => "-",
+                     "distinct-values" => false,
+        );
     $options["startRecord"] = $sru_fcs_params->startRecord;
     $options["maximumRecords"] = $sru_fcs_params->maximumRecords;
     $lemma_query = get_search_term_for_wildcard_search("entry", $sru_fcs_params->query);
@@ -168,7 +178,16 @@ function langId2LangName($langId) {
     $sense_query_exact = get_search_term_for_exact_search("sense", $sru_fcs_params->query);
     $sense_query = get_search_term_for_wildcard_search("sense", $sru_fcs_params->query);
  
-    if (isset($sense_query_exact)) {
+    $rfpid_query = get_search_term_for_wildcard_search("rfpid", $sru_fcs_params->query);
+    $rfpid_query_exact = get_search_term_for_exact_search("rfpid", $sru_fcs_params->query);
+    if (!isset($rfpid_query_exact)) {
+        $rfpid_query_exact = $rfpid_query;
+    }
+    if (isset($rfpid_query_exact)) {
+        $query = $db->escape_string($rfpid_query_exact);
+        populateSearchResult($db, "SELECT id, entry, sid, 1 FROM $glossTable WHERE id=$query", "Resource Fragment for pid");
+        return;
+    } else if (isset($sense_query_exact)) {
         $options["query"] = $db->escape_string($sense_query_exact);
         $options["xpath"] = "-quote-";
         $options["exact"] = true;
@@ -226,6 +245,11 @@ function scan() {
         );
     }
     
+    if ($sru_fcs_params->scanClause === 'rfpid') {
+       $sqlstr = "SELECT id, entry, sid FROM $glossTable ORDER BY CAST(id AS SIGNED)";
+       populateScanResult($db, $sqlstr, NULL, true, true);
+       return;
+    }
     if ($sru_fcs_params->scanClause === '' ||
         strpos($sru_fcs_params->scanClause, 'entry') === 0 ||
         strpos($sru_fcs_params->scanClause, 'serverChoice') === 0 ||

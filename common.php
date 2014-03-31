@@ -353,6 +353,10 @@ function getWellKnownTEIPartAsXML ($db, $table, $id) {
  * @return \DOMXPath The input text consisting of TEI XML as DOMXPath queryable object
  */
 function getTEIDataAsXMLQueryObject($xmlText) {
+    $trimmedXMLText = trim($xmlText);
+    if ($trimmedXMLText[0] !== '<') {
+        return null;
+    }
     $xmlDoc = new \DOMDocument();
     $xmlDoc->loadXML($xmlText);
     // forcebly register default and tei xmlns as tei
@@ -459,14 +463,17 @@ function populateSearchResult($db, $sql, $description, $processResult = NULL) {
             
             if ($wantTitle) {               
                 $contentXPath = getTEIDataAsXMLQueryObject($decodedContent);
-                foreach ($contentXPath->query('//teiHeader/fileDesc/titleStmt/title') as $node) {
-                    $title .= $node->textContent;
+                if (isset($contextXPath)) {
+                    foreach ($contentXPath->query('//teiHeader/fileDesc/titleStmt/title') as $node) {
+                        $title .= $node->textContent;
+                    }
                 }
                 if ($title === "") {
                     foreach ($dbTeiHeaderXML->query('//teiHeader/fileDesc/titleStmt/title') as $node) {
                         $title .= $node->textContent;
                     }
                 }
+                
             }
 
             array_push($hits, array(
@@ -508,7 +515,7 @@ function populateSearchResult($db, $sql, $description, $processResult = NULL) {
  * @param bool $exact If the start word needs to be exactly the specified or
  *                    if it should be just anywhere in the string.
  */
-function populateScanResult($db, $sqlstr, $entry = NULL, $exact = true) {
+function populateScanResult($db, $sqlstr, $entry = NULL, $exact = true, $isNumber = false) {
     global $scanTemplate;
     global $sru_fcs_params;
     
@@ -523,9 +530,10 @@ function populateScanResult($db, $sqlstr, $entry = NULL, $exact = true) {
         $terms = new \SplFixedArray($result->num_rows);
         $i = 0;
         while (($row = $result->fetch_array()) !== NULL) {
+            $entry_count = isset($row["COUNT(*)"]) ? $row["COUNT(*)"]: 1;
             $term = array(
                 'value' => decodecharrefs($row[0]),
-                'numberOfRecords' => $row["COUNT(*)"],
+                'numberOfRecords' => $entry_count,
             );
             // for sorting ignore some punctation marks etc.
             $term["sortValue"] = trim(preg_replace('/[?!()*,.\\-\\/|=]/', '', mb_strtoupper($term["value"], 'UTF-8')));
@@ -541,10 +549,12 @@ function populateScanResult($db, $sqlstr, $entry = NULL, $exact = true) {
             $terms[$i++] = $term;
         }
         $sortedTerms = $terms->toArray();
-        usort($sortedTerms, function ($a, $b) {
-            $ret = strcmp($a["sortValue"],  $b["sortValue"]);
-            return $ret;
-        });
+        if (!$isNumber) {
+            usort($sortedTerms, function ($a, $b) {
+                $ret = strcmp($a["sortValue"], $b["sortValue"]);
+                return $ret;
+            });
+        }
         $startPosition = 0;
         if (isset($entry)) {
             $startAtString = is_array($entry) ? $entry[0] : $entry;
@@ -561,8 +571,6 @@ function populateScanResult($db, $sqlstr, $entry = NULL, $exact = true) {
         while ($position < min($maximumTerms + $startPosition, count($sortedTerms))){
             array_push($shortList, $sortedTerms[$position]);
             $shortList[$position]["position"] = $position + 1;
-//            $shortList[$position]["value"] = encodecharrefs($shortList[$position]["value"]);
-//            $shortList[$position]["value"] = utf8_character2html_decimal_numeric($shortList[$position]["sortValue"]) . "->" . $shortList[$position]["value"];
             $position++;
         }
 

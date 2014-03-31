@@ -72,7 +72,15 @@ require_once "common.php";
         'scan' => 'true',
         'sort' => 'false',
     ));
-        
+
+    array_push($maps, array(
+        'title' => 'Resource Fragement PID',
+        'name' => 'rfpid',
+        'search' => 'true',
+        'scan' => 'true',
+        'sort' => 'false',
+    ));
+    
     populateExplainResult($db, "vicav_bibl_002", "vicav-bib", $maps);
  }
  
@@ -114,7 +122,16 @@ require_once "common.php";
     $author_query_exact = get_search_term_for_exact_search("author", $sru_fcs_params->query);
     $imprintDate_query_exact = get_search_term_for_exact_search("imprintDate", $sru_fcs_params->query);
     
-    if (isset($vicavTaxonomy_query_exact)){
+    $rfpid_query = get_search_term_for_wildcard_search("rfpid", $sru_fcs_params->query);
+    $rfpid_query_exact = get_search_term_for_exact_search("rfpid", $sru_fcs_params->query);
+    if (!isset($rfpid_query_exact)) {
+        $rfpid_query_exact = $rfpid_query;
+    }
+    if (isset($rfpid_query_exact)) {
+        $query = $db->escape_string($rfpid_query_exact);
+        populateSearchResult($db, "SELECT id, entry, sid, 1 FROM vicav_bibl_002 WHERE id=$query", "Resource Fragment for pid");
+        return;
+    } else if (isset($vicavTaxonomy_query_exact)){
         $options["query"] = $db->escape_string($vicavTaxonomy_query_exact);       
         $options["xpath"] = "-index-term-vicavTaxonomy-";
         $options["exact"] = true;
@@ -132,7 +149,7 @@ require_once "common.php";
         $options["query"] = $db->escape_string($imprintDate_query_exact);       
         $options["xpath"] = "-imprint-date-";
         $options["exact"] = true;
-    } else  {
+    } else {
        if (isset($profile_query_exact)) {
            $options["query"] = $db->escape_string($profile_query_exact);
            $options["exact"] = true;
@@ -166,6 +183,11 @@ function scan() {
     
     $sqlstr = '';
     
+    if ($sru_fcs_params->scanClause === 'rfpid') {
+       $sqlstr = "SELECT id, entry, sid FROM vicav_bibl_002 ORDER BY CAST(id AS SIGNED)";
+       populateScanResult($db, $sqlstr, NULL, true, true);
+       return;
+    }
     if ($sru_fcs_params->scanClause === '' ||
         $sru_fcs_params->scanClause === 'id' ||
         $sru_fcs_params->scanClause === 'serverChoice' ||
