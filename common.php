@@ -190,10 +190,14 @@ function sqlForXPath($table, $xpath, $options = NULL) {
             $groupCount = ", COUNT(*)";
             $groupAndLimit .= " GROUP BY base.sid";
         }
-        if (isset($options["startRecord"])) {
+        if (isset($options["startRecord"]) && $options["startRecord"] !== false) {
             $groupAndLimit .= " LIMIT " . ($options["startRecord"] - 1);
-            if (isset($options["maximumRecords"])) {
+        }
+        if (isset($options["maximumRecords"]) && $options["maximumRecords"] !== false) {
+            if (isset($options["startRecord"]) && $options["startRecord"] !== false) {
                 $groupAndLimit .= ", " . $options["maximumRecords"];
+            } else {
+                $groupAndLimit .= " LIMIT 0," .  $options["maximumRecords"];
             }
         }
         if (isset($options["xpath-filters"])) {
