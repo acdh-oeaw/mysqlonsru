@@ -24,6 +24,7 @@ require_once "common.php";
 
 $restrictedGlossaries = array(
     "apc_eng_002",
+    "aeb_eng_001__v001",
 );
 
 function langId2LangName($langId) {
@@ -102,7 +103,7 @@ function langId2LangName($langId) {
     $doc->loadXML($xmlcode);
 
     $xpath = new \DOMXpath($doc);
-    $elements = $xpath->query("//ptr[@type='example']");
+    $elements = $xpath->query("//ptr[@type='example' or @type='multiWordUnit']");
 
     if ((!is_null($elements)) && ($elements->length != 0)) {
         $attr = array();
