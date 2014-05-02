@@ -81,7 +81,7 @@ function encodecharrefs($str) {
 //     "&amp;" => "&#amp;",
 //     "&x" => "&#x",
     );
-    $htmlEncodedStr = \ACDH\FCSSRU\utf8_character2html_decimal_numeric(utf8_decode($str));
+    $htmlEncodedStr = \ACDH\FCSSRU\utf8_character2html_decimal_numeric($str);
     foreach ($replacements as $search => $replace) {
         $htmlEncodedStr = str_replace($search, $replace, $htmlEncodedStr);
     }
@@ -261,6 +261,7 @@ function curPageURL() {
  */
 function populateExplainResult ($db, $table, $publicName, $indices) {
     global $explainTemplate;
+    global $sru_fcs_params;
     
     $teiHeaderXML = getMetadataAsXML($db, $table);
     $title = "";
@@ -282,7 +283,10 @@ function populateExplainResult ($db, $table, $publicName, $indices) {
 //        $description = $xmlDocXPath->evaluate('string(//publicationStmt/pubPlace)') . ', ' .
 //                $xmlDocXPath->evaluate('string(//publicationStmt/date)') . '. Edition: ' .
 //                $xmlDocXPath->evaluate('string(//editionStmt/edition)') . '.';
-        $frontMatterXML = getFrontMatterAsXML($db, $table);
+        $frontMatterXML = null;
+        if (strpos($sru_fcs_params->xdataview, 'metadata') === false) {
+            $frontMatterXML = getFrontMatterAsXML($db, $table);
+        }
         if ($frontMatterXML !== null) {
             $description = $frontMatterXML->document->saveXML($frontMatterXML->document->firstChild);
         } else {
