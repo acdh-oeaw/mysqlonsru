@@ -40,6 +40,56 @@ function langId2LangName($langId) {
     return $langId;
 }
 
+class glossaryComparatorFactory extends comparatorFactory {
+    public function createComparator() {
+        return new glossarySearchResultComparator($this->query);
+    } 
+}
+
+class glossarySearchResultComparator extends searchResultComparator {
+
+    private $query;
+    private $queryLen;
+    
+    public function __construct($query) {
+        $this->query = $query;
+        $this->queryLen = strlen($query);
+    }
+    /**
+     * 
+     * @param array $a An array with a 'content' field
+     * @param array $b An array with a 'content' field
+     */
+    public function sortSearchResult($a, $b) {
+        $xmla = new \DOMDocument;
+        $xmla->loadXML($a['content']);
+        $xmlaXPath = new \DOMXPath($xmla);
+        $xmlb = new \DOMDocument;
+        $xmlb->loadXML($b['content']);
+        $xmlbXPath = new \DOMXPath($xmlb);
+        $similarityA = 1;
+        $similarityB = 1;
+        foreach ($xmlaXPath->query('//form[@type = "lemma"]/orth|//cit[@type="translation"]/quote|//def') as $node) {
+            $text = $node->textContent;
+            $norm = strlen($text) > $this->queryLen ? strlen($text) : $this->queryLen;
+            $ratio = 1 - (\levenshtein($this->query, $text) / $norm);
+            $similarityA *= 1 + $ratio;
+        }
+        foreach ($xmlbXPath->query('//form[@type = "lemma"]/orth|//cit[@type="translation"]/quote|//def') as $node) {
+            $text = $node->textContent;
+            $norm = strlen($text) > $this->queryLen ? strlen($text) : $this->queryLen;
+            $ratio = 1 - (\levenshtein($this->query, $text) / $norm);
+            $similarityB *= 1 + $ratio;
+        }
+        if ($similarityA === $similarityB)
+            return 0;
+        if ($similarityA > $similarityB)
+            return -1;
+        return 1;
+    }
+
+}
+
 /**
  * Generates a response according to ZeeRex
  * 
@@ -211,7 +261,9 @@ function langId2LangName($langId) {
         );
     }
 
-    populateSearchResult($db, $options, "Glossary for " . $options["query"], '\\ACDH\\FCSSRU\\mysqlonsru\\processSearchResult');
+    populateSearchResult($db, $options, "Glossary for " . $options["query"],
+            '\\ACDH\\FCSSRU\\mysqlonsru\\processSearchResult',
+            new glossaryComparatorFactory($options["query"]));
  }
 
   /**

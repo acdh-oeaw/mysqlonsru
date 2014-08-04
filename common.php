@@ -392,8 +392,9 @@ function getTEIDataAsXMLQueryObject($xmlText) {
  *                                It is expected to return
  *                                the content that is placed at the appropriate
  *                                position in the returned XML document.
+ * @param comparatorFactory $comparatorFactory A class that can create a comporator for sorting the result.
  */
-function populateSearchResult($db, $sql, $description, $processResult = NULL) {
+function populateSearchResult($db, $sql, $description, $processResult = NULL, $comparatorFactory = NULL) {
     global $responseTemplate;
     global $sru_fcs_params;
     
@@ -499,11 +500,41 @@ function populateSearchResult($db, $sql, $description, $processResult = NULL) {
             ));
         }
         $result->close();
-
+        if (isset($comparatorFactory)) {
+            $comparator = $comparatorFactory->createComparator();
+            usort($hits, array($comparator, 'sortSearchResult'));
+        }
         $tmpl->setloop('hits', $hits);
         $tmpl->pparse();
     } else {
         \ACDH\FCSSRU\diagnostics(1, 'MySQL query error: Query was: ' . $sql);
+    }
+}
+
+class comparatorFactory {
+    
+    /**
+     *
+     * @var string the query string passed for searchRetrieve 
+     */
+    protected $query;
+    
+    public function __construct($query) {
+        $this->query = $query;
+    }
+    
+    /**
+     * Dummy, override to create your comparator.
+     * @return searchResultComparator
+     */
+    public function createComparator() {
+        return new searchResultComparator();
+    }
+}
+
+class searchResultComparator {
+    public function sortSearchResult($a, $b) {
+        return 0;
     }
 }
 
