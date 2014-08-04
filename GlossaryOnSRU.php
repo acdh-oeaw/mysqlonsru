@@ -71,15 +71,23 @@ class glossarySearchResultComparator extends searchResultComparator {
         $similarityB = 1;
         foreach ($xmlaXPath->query('//form[@type = "lemma"]/orth|//cit[@type="translation"]/quote|//def') as $node) {
             $text = $node->textContent;
-            $norm = strlen($text) > $this->queryLen ? strlen($text) : $this->queryLen;
-            $ratio = 1 - (\levenshtein($this->query, $text) / $norm);
-            $similarityA *= 1 + $ratio;
+            if ($text === $this->query) {
+                $similarityA += 10;
+            } else {
+                $norm = strlen($text) > $this->queryLen ? strlen($text) : $this->queryLen;
+                $ratio = 1 - (\levenshtein($this->query, $text) / $norm);
+                $similarityA *= 1 + $ratio;
+            }
         }
         foreach ($xmlbXPath->query('//form[@type = "lemma"]/orth|//cit[@type="translation"]/quote|//def') as $node) {
             $text = $node->textContent;
-            $norm = strlen($text) > $this->queryLen ? strlen($text) : $this->queryLen;
-            $ratio = 1 - (\levenshtein($this->query, $text) / $norm);
-            $similarityB *= 1 + $ratio;
+            if ($text === $this->query) {
+                $similarityB += 10;
+            } else {
+                $norm = strlen($text) > $this->queryLen ? strlen($text) : $this->queryLen;
+                $ratio = 1 - (\levenshtein($this->query, $text) / $norm);
+                $similarityB *= 1 + $ratio;
+            }
         }
         if ($similarityA === $similarityB)
             return 0;
