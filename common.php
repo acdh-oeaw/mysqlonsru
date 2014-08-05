@@ -90,7 +90,7 @@ function encodecharrefs($str) {
 
 function _or($string1, $string2) {
     if (($string1 !== "") and ($string2 !== "")) {
-        return ($string1." OR ".$string2);
+        return ("($string1) OR ($string2)");
     } else if ($string2 !== "") {
         return $string2;
     } else {
@@ -100,7 +100,7 @@ function _or($string1, $string2) {
 
 function _and($string1, $string2) {
     if (($string1 !== "") and ($string2 !== "")) {
-        return ($string1." AND ".$string2);
+        return ("($string1) AND ($string2)");
     } else if ($string2 !== "") {
         return $string2;
     } else {
@@ -153,6 +153,21 @@ function sqlForXPath($table, $xpath, $options = NULL) {
         if (isset($options["xpath"])) {
             $xpath = $options["xpath"];
         }
+        // ndx search
+        $indexTable = $table . "_ndx";
+//        if (isset($options["filter"])) {
+//            $f = $options["filter"];
+//            if (strpos($f, '%') !== false) {
+//                $filter .= "ndx.txt NOT LIKE '$f'";
+//            } else {
+//                $filter .= "ndx.txt != '$f'";
+//            }
+//        }
+        if (isset($options["xpath-filters"])) {
+            $tableOrPrefilter = genereatePrefilterSql($indexTable, $options);
+        } else {
+            $tableOrPrefilter = $indexTable;
+        }
         if ($xpath !== "") {
             $likeXpath .= "(";
             foreach (explode('|', $xpath) as $xpath) {
@@ -160,9 +175,6 @@ function sqlForXPath($table, $xpath, $options = NULL) {
             }
             $likeXpath = substr($likeXpath , 0, strrpos($likeXpath, ' OR '));
             $likeXpath .= ')';
-        }       
-        if (isset($options["show-lemma"]) && $options["show-lemma"] === true) {
-            $lemma = ", base.lemma";
         }
         if (isset($options["query"])) {
             $q = encodecharrefs($options["query"]);
@@ -172,13 +184,14 @@ function sqlForXPath($table, $xpath, $options = NULL) {
                $query .= "ndx.txt LIKE '%$q%'";
             }
         }
-        if (isset($options["filter"])) {
-            $f = $options["filter"];
-            if (strpos($f, '%') !== false) {
-                $filter .= "ndx.txt NOT LIKE '$f'";
-            } else {
-                $filter .= "ndx.txt != '$f'";
-            }
+
+        $indexTable = "(SELECT ndx.id, ndx.txt FROM " . $tableOrPrefilter .
+                " AS ndx WHERE "._and($query, _and($filter, $likeXpath)).
+                // There seems no point in reporting all id + txt if the query did match a lot of txt
+                ' GROUP BY ndx.id)';
+        // base
+        if (isset($options["show-lemma"]) && $options["show-lemma"] === true) {
+            $lemma = ", base.lemma";
         }
         if (isset($options["justCount"]) && $options["justCount"] === true) {
             $justCount = true;
@@ -200,16 +213,11 @@ function sqlForXPath($table, $xpath, $options = NULL) {
                 $groupAndLimit .= " LIMIT 0," .  $options["maximumRecords"];
             }
         }
-        if (isset($options["xpath-filters"])) {
-            $tableOrPrefilter = genereatePrefilterSql($table, $options);
-        } else {
-            $tableOrPrefilter = $table;
-        }
     }
     return "SELECT" . ($justCount ? " COUNT(*) " : " ndx.txt, base.entry, base.sid" . $lemma . $groupCount) .
-            " FROM " . $tableOrPrefilter . " AS base " .
-            "INNER JOIN " . $table . "_ndx AS ndx ON base.id = ndx.id " .
-            "WHERE "._and($likeXpath, _and($query, $filter)).$groupAndLimit;            
+            " FROM " . $table . " AS base " .
+            "INNER JOIN " . $indexTable . " AS ndx ON base.id = ndx.id " .
+            $groupAndLimit;            
 }
 
 function genereatePrefilterSql($table, $options) {
@@ -220,9 +228,20 @@ function genereatePrefilterSql($table, $options) {
     } else {
         $tableOrPrefilter = genereatePrefilterSql($table, $recursiveOptions);
     }
-    return '(SELECT base.* FROM '. $table . ' AS base INNER JOIN ' . $table .
-           "_ndx AS prefilter ON base.id=prefilter.id WHERE prefilter.xpath LIKE  '%" .
-            key($options["xpath-filters"]) . "' AND prefilter.txt = '" . current($options["xpath-filters"]) ."')";
+    $filter = '';
+    if (isset($options["filter"])) {
+        $f = $options["filter"];
+        if (strpos($f, '%') !== false) {
+            $filter .= "WHERE tab.txt NOT LIKE '$f'";
+        } else {
+            $filter .= "WHERE tab.txt != '$f'";
+        }
+    }
+    return "(SELECT tab.id, tab.xpath, tab.txt FROM $table AS tab INNER JOIN " .
+            "(SELECT inner.id FROM $table AS `inner` WHERE ". 
+            "inner.txt = '" . current($options["xpath-filters"]) . "' " .
+            "AND inner.xpath LIKE '%" . key($options["xpath-filters"]) . "') " .
+           "AS prefid ON tab.id = prefid.id $filter)";
 }
 
 /**
