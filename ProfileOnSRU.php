@@ -61,6 +61,14 @@ require_once "common.php";
             'scan' => 'true',
             'sort' => 'false',
         ));
+    } else if (stripos($profileTable, "texts") !== false) {
+        array_push($maps, array(
+            'title' => 'VICAV Project Texts',
+            'name' => 'text',
+            'search' => 'true',
+            'scan' => 'true',
+            'sort' => 'false',
+        ));
     } else if (stripos($profileTable, "meta") !== false) {
         array_push($maps, array(
             'title' => 'VICAV Meta Text',
@@ -125,6 +133,14 @@ require_once "common.php";
     $sampleText_query = get_search_term_for_wildcard_search("sampleText", $sru_fcs_params->query);
     if (!isset($sampleText_query) && (stripos($profileTable, "sampletext") !== false)) {
         $sampleText_query = get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
+    }    
+    $text_query_exact = get_search_term_for_exact_search("text", $sru_fcs_params->query);
+    if (!isset($text_query_exact) && (stripos($profileTable, "texts") !== false)) {
+        $text_query_exact = get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
+    }
+    $text_query = get_search_term_for_wildcard_search("text", $sru_fcs_params->query);
+    if (!isset($text_query) && (stripos($profileTable, "texts") !== false)) {
+        $text_query = get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
     }
     $metaText_query_exact = get_search_term_for_exact_search("metaText", $sru_fcs_params->query);
     if (!isset($metaText_query_exact) && (stripos($profileTable, "meta") !== false)) {
@@ -185,6 +201,10 @@ require_once "common.php";
            $query = $db->escape_string($metaText_query_exact);
        } else if (isset($metaText_query)) {
            $query = $db->escape_string($metaText_query);
+       } else if (isset($text_query_exact)) {
+           $query = $db->escape_string($text_query_exact);
+       } else if (isset($text_query)) {
+           $query = $db->escape_string($text_query);
        } else if (isset($toolsText_query_exact)) {
            $query = $db->escape_string($toolsText_query_exact);
        } else if (isset($toolsText_query)) {
@@ -194,11 +214,12 @@ require_once "common.php";
        }
        $description = "Arabic dialect profile for the region of $query"; 
        $sqlstr = "SELECT DISTINCT id, entry FROM $profileTable ";
-       if (isset($profile_query_exact) || isset($metaText_query_exact)) {
+       if (isset($profile_query_exact) || isset($metaText_query_exact) || isset($text_query_exact)) {
           $sqlstr.= "WHERE lemma = '" . encodecharrefs($query) . "'"; 
        } else {
            if ((stripos($profileTable, "profile") !== false) ||
                (stripos($profileTable, "meta") !== false) ||
+               (stripos($profileTable, "texts") !== false) ||
                (stripos($profileTable, "tools") !== false)) {
                 $sqlstr.= "WHERE lemma LIKE '%" . encodecharrefs($query) . "%'";
            } else if (stripos($profileTable, "sampletext") !== false) {
@@ -263,6 +284,13 @@ function scan() {
               "WHERE sid LIKE '%_sample_%' GROUP BY sid";           
     } else if ($sru_fcs_params->scanClause === 'metaText' ||
         ((stripos($profileTable, "meta") !== false) &&
+        ($sru_fcs_params->scanClause === '' ||
+         $sru_fcs_params->scanClause === 'serverChoice' ||
+         $sru_fcs_params->scanClause === 'cql.serverChoice'))) {
+       $sqlstr = "SELECT DISTINCT lemma, id, sid, COUNT(*) FROM $profileTable " .
+              "WHERE lemma NOT LIKE '[%]' GROUP BY lemma";           
+    } else if ($sru_fcs_params->scanClause === 'text' ||
+        ((stripos($profileTable, "texts") !== false) &&
         ($sru_fcs_params->scanClause === '' ||
          $sru_fcs_params->scanClause === 'serverChoice' ||
          $sru_fcs_params->scanClause === 'cql.serverChoice'))) {
