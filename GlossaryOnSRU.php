@@ -346,6 +346,8 @@ function scan() {
     
     populateScanResult($db, $sqlstr, $scanClause, $exact);
 }
-\ACDH\FCSSRU\getParamsAndSetUpHeader();
-$glossTable = $sru_fcs_params->xcontext;
-processRequest();
+if (!isset($runner)) {
+    \ACDH\FCSSRU\getParamsAndSetUpHeader();
+    $glossTable = $sru_fcs_params->xcontext;
+    processRequest();
+}

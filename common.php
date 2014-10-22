@@ -11,7 +11,7 @@ namespace ACDH\FCSSRU\mysqlonsru;
 /**
  * Configuration options and function common to all fcs php scripts
  */
-require_once "../utils-php/common.php";
+require_once __DIR__ . "/../utils-php/common.php";
 
 use clausvb\vlib\vlibTemplate;
 
