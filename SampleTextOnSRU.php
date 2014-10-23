@@ -13,10 +13,13 @@
 //error_reporting(E_ALL);
 namespace ACDH\FCSSRU\mysqlonsru;
 
+use ACDH\FCSSRU\mysqlonsru\SRUFromMysqlBase;
+
 /**
  * Load configuration and common functions
  */
-require_once "common.php";
+
+require_once __DIR__ . "/common.php";
 
 /**
  * Generates a response according to ZeeRex
@@ -31,7 +34,9 @@ require_once "common.php";
  {
     global $sampleTable;
     
-    $db = db_connect();
+    $base = new SRUFromMysqlBase();
+        
+    $db = $base->db_connect();
     if ($db->connect_errno) {
         return;
     }
@@ -64,7 +69,7 @@ require_once "common.php";
         'sort' => 'false',
     ));
     
-    populateExplainResult($db, "$sampleTable", "$sampleTable", $maps);
+    $base->populateExplainResult($db, "$sampleTable", "$sampleTable", $maps);
  }
 
  /**
@@ -77,32 +82,34 @@ require_once "common.php";
  function search() {
     global $sampleTable;
     global $sru_fcs_params;
-
-    $db = db_connect();
+    
+    $base = new SRUFromMysqlBase();
+        
+    $db = $base->db_connect();
     if ($db->connect_errno) {
         return;
     }    
     // HACK, sql parser? cql.php = GPL -> this GPL too
     $sru_fcs_params->query = str_replace("\"", "", $sru_fcs_params->query);
     $description = "";
-    $sampleText_query_exact = get_search_term_for_exact_search("sampleText", $sru_fcs_params->query);
+    $sampleText_query_exact = $base->get_search_term_for_exact_search("sampleText", $sru_fcs_params->query);
     if (!isset($sampleText_query_exact) && (stripos($sampleTable, "sampletext") !== false)) {
-        $sampleText_query_exact = get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
+        $sampleText_query_exact = $base->get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
     }
-    $sampleText_query = get_search_term_for_wildcard_search("sampleText", $sru_fcs_params->query);
+    $sampleText_query = $base->get_search_term_for_wildcard_search("sampleText", $sru_fcs_params->query);
     if (!isset($sampleText_query) && (stripos($sampleTable, "sampletext") !== false)) {
-        $sampleText_query = get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
+        $sampleText_query = $base->get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
         if (!isset($sampleText_query)) {
             $sampleText_query = $sru_fcs_params->query;
         }         
     }
-    $lingfeatureText_query_exact = get_search_term_for_exact_search("lingfeature", $sru_fcs_params->query);
+    $lingfeatureText_query_exact = $base->get_search_term_for_exact_search("lingfeature", $sru_fcs_params->query);
     if (!isset($lingfeatureText_query_exact) && (stripos($sampleTable, "lingfeatures") !== false)) {
-        $lingfeatureText_query_exact = get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
+        $lingfeatureText_query_exact = $base->get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
     }
-    $lingfeatureText_query = get_search_term_for_wildcard_search("lingfeature", $sru_fcs_params->query);
+    $lingfeatureText_query = $base->get_search_term_for_wildcard_search("lingfeature", $sru_fcs_params->query);
     if (!isset($lingfeatureText_query) && (stripos($sampleTable, "lingfeatures") !== false)) {
-        $lingfeatureText_query = get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
+        $lingfeatureText_query = $base->get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
         if (!isset($lingfeatureText_query)) {
             $lingfeatureText_query = $sru_fcs_params->query;
         }
@@ -113,8 +120,8 @@ require_once "common.php";
     );     
     
  
-    $rfpid_query = get_search_term_for_wildcard_search("rfpid", $sru_fcs_params->query);
-    $rfpid_query_exact = get_search_term_for_exact_search("rfpid", $sru_fcs_params->query);
+    $rfpid_query = $base->get_search_term_for_wildcard_search("rfpid", $sru_fcs_params->query);
+    $rfpid_query_exact = $base->get_search_term_for_exact_search("rfpid", $sru_fcs_params->query);
     if (!isset($rfpid_query_exact)) {
         $rfpid_query_exact = $rfpid_query;
     }
@@ -163,8 +170,10 @@ require_once "common.php";
 function scan() {
     global $sru_fcs_params;
     global $sampleTable;
-
-    $db = db_connect();
+    
+    $base = new SRUFromMysqlBase();
+        
+    $db = $base->db_connect();
     if ($db->connect_errno) {
         return;
     }
@@ -181,7 +190,7 @@ function scan() {
         ($sru_fcs_params->scanClause === '' ||
          $sru_fcs_params->scanClause === 'serverChoice' ||
          $sru_fcs_params->scanClause === 'cql.serverChoice'))) {
-       $sqlstr = sqlForXPath($sampleTable, "TEI-text-body-div-head-", array(
+       $sqlstr = $base->sqlForXPath($sampleTable, "TEI-text-body-div-head-", array(
            "distinct-values" => true,
        ));
     } else if ($sru_fcs_params->scanClause === 'lingfeature' ||
@@ -189,20 +198,21 @@ function scan() {
         ($sru_fcs_params->scanClause === '' ||
          $sru_fcs_params->scanClause === 'serverChoice' ||
          $sru_fcs_params->scanClause === 'cql.serverChoice'))) {
-       $sqlstr = sqlForXPath($sampleTable, "TEI-text-body-div-head-", array(
+       $sqlstr = $base->sqlForXPath($sampleTable, "TEI-text-body-div-head-", array(
            "distinct-values" => true,
        ));
          
 //    } else if ($sru_fcs_params->scanClause === 'geo') {
-//       $sqlstr = sqlForXPath($sampleTable, "geo-"); 
+//       $sqlstr = $base->sqlForXPath($sampleTable, "geo-"); 
     } else {
         \ACDH\FCSSRU\diagnostics(51, 'Result set: ' . $sru_fcs_params->scanClause);
         return;
     }
     
-    populateScanResult($db, $sqlstr);
+    $base->populateScanResult($db, $sqlstr);
 }
-
-\ACDH\FCSSRU\getParamsAndSetUpHeader();
-$sampleTable = $sru_fcs_params->xcontext;
-processRequest();
+if (!isset($runner)) {
+    \ACDH\FCSSRU\getParamsAndSetUpHeader();
+    $sampleTable = $sru_fcs_params->xcontext;
+    SRUFromMysqlBase::processRequest();
+}

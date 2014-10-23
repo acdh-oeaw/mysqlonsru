@@ -16,11 +16,13 @@
 
 namespace ACDH\FCSSRU\mysqlonsru;
 
+use ACDH\FCSSRU\mysqlonsru\SRUFromMysqlBase;
+
 /**
  * Load configuration and common functions
  */
 
-require_once "common.php";
+require_once __DIR__ . "/common.php";
 
 
 /**
@@ -34,7 +36,9 @@ require_once "common.php";
  function explain()
  {
     
-    $db = db_connect();
+    $base = new SRUFromMysqlBase();
+        
+    $db = $base->db_connect();
     if ($db->connect_errno) {
         return;
     }
@@ -81,7 +85,7 @@ require_once "common.php";
         'sort' => 'false',
     ));
     
-    populateExplainResult($db, "vicav_bibl_002", "vicav-bib", $maps);
+    $base->populateExplainResult($db, "vicav_bibl_002", "vicav-bib", $maps);
  }
  
  /**
@@ -92,8 +96,10 @@ require_once "common.php";
  function search()
  {
     global $sru_fcs_params;
-
-    $db = db_connect();
+    
+    $base = new SRUFromMysqlBase();
+        
+    $db = $base->db_connect();
     if ($db->connect_errno) {
         return;
     }
@@ -108,22 +114,22 @@ require_once "common.php";
        );
     $options["startRecord"] = $sru_fcs_params->startRecord;
     $options["maximumRecords"] = $sru_fcs_params->maximumRecords;
-    $profile_query = get_search_term_for_wildcard_search("id", $sru_fcs_params->query);
+    $profile_query = $base->get_search_term_for_wildcard_search("id", $sru_fcs_params->query);
     if (!isset($profile_query)) {
-        $profile_query = get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
+        $profile_query = $base->get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
     }
-    $profile_query_exact = get_search_term_for_exact_search("id", $sru_fcs_params->query);
+    $profile_query_exact = $base->get_search_term_for_exact_search("id", $sru_fcs_params->query);
     if (!isset($profile_query_exact)) {
-        $profile_query_exact = get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
+        $profile_query_exact = $base->get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
     }
-    $vicavTaxonomy_query = get_search_term_for_wildcard_search("vicavTaxonomy", $sru_fcs_params->query);
-    $vicavTaxonomy_query_exact = get_search_term_for_exact_search("vicavTaxonomy", $sru_fcs_params->query);
-    $author_query = get_search_term_for_wildcard_search("author", $sru_fcs_params->query);
-    $author_query_exact = get_search_term_for_exact_search("author", $sru_fcs_params->query);
-    $imprintDate_query_exact = get_search_term_for_exact_search("imprintDate", $sru_fcs_params->query);
+    $vicavTaxonomy_query = $base->get_search_term_for_wildcard_search("vicavTaxonomy", $sru_fcs_params->query);
+    $vicavTaxonomy_query_exact = $base->get_search_term_for_exact_search("vicavTaxonomy", $sru_fcs_params->query);
+    $author_query = $base->get_search_term_for_wildcard_search("author", $sru_fcs_params->query);
+    $author_query_exact = $base->get_search_term_for_exact_search("author", $sru_fcs_params->query);
+    $imprintDate_query_exact = $base->get_search_term_for_exact_search("imprintDate", $sru_fcs_params->query);
     
-    $rfpid_query = get_search_term_for_wildcard_search("rfpid", $sru_fcs_params->query);
-    $rfpid_query_exact = get_search_term_for_exact_search("rfpid", $sru_fcs_params->query);
+    $rfpid_query = $base->get_search_term_for_wildcard_search("rfpid", $sru_fcs_params->query);
+    $rfpid_query_exact = $base->get_search_term_for_exact_search("rfpid", $sru_fcs_params->query);
     if (!isset($rfpid_query_exact)) {
         $rfpid_query_exact = $rfpid_query;
     }
@@ -161,7 +167,7 @@ require_once "common.php";
        $options["xpath"] = "biblStruct-xml:id";
     }
 
-    populateSearchResult($db, $options, "Bibliography for the region of " . $options["query"]);
+    $base->populateSearchResult($db, $options, "Bibliography for the region of " . $options["query"]);
 }
 
  /**
@@ -175,8 +181,10 @@ require_once "common.php";
  */
 function scan() {
     global $sru_fcs_params;
-
-    $db = db_connect();
+    
+    $base = new SRUFromMysqlBase();
+        
+    $db = $base->db_connect();
     if ($db->connect_errno) {
         return;
     }
@@ -192,7 +200,7 @@ function scan() {
         $sru_fcs_params->scanClause === 'id' ||
         $sru_fcs_params->scanClause === 'serverChoice' ||
         $sru_fcs_params->scanClause === 'cql.serverChoice') {
-       $sqlstr = sqlForXPath("vicav_bibl_002", "biblStruct-xml:id",
+       $sqlstr = $base->sqlForXPath("vicav_bibl_002", "biblStruct-xml:id",
                array("filter" => "-",
                      "distinct-values" => true,
                      "xpath-filters" => array (
@@ -200,7 +208,7 @@ function scan() {
                         ),
                    ));     
     } else if ($sru_fcs_params->scanClause === 'vicavTaxonomy') {
-       $sqlstr = sqlForXPath("vicav_bibl_002", "-index-term-vicavTaxonomy-",
+       $sqlstr = $base->sqlForXPath("vicav_bibl_002", "-index-term-vicavTaxonomy-",
                array("filter" => "-",
                      "distinct-values" => true,
                      "xpath-filters" => array (
@@ -208,7 +216,7 @@ function scan() {
                         ),
                    )); 
     } else if ($sru_fcs_params->scanClause === 'author') {
-       $sqlstr = sqlForXPath("vicav_bibl_002", "-monogr-author-|-analytic-author-",
+       $sqlstr = $base->sqlForXPath("vicav_bibl_002", "-monogr-author-|-analytic-author-",
                array("filter" => "-",
                      "distinct-values" => true,
                      "xpath-filters" => array (
@@ -216,7 +224,7 @@ function scan() {
                         ),
                    )); 
     } else if ($sru_fcs_params->scanClause === 'imprintDate') {
-       $sqlstr = sqlForXPath("vicav_bibl_002", "-imprint-date-",
+       $sqlstr = $base->sqlForXPath("vicav_bibl_002", "-imprint-date-",
                array("filter" => "-",
                      "distinct-values" => true,
                      "xpath-filters" => array (
@@ -228,9 +236,10 @@ function scan() {
         return;
     }
     
-    populateScanResult($db, $sqlstr);
+    $base->populateScanResult($db, $sqlstr);
 }
-
-\ACDH\FCSSRU\getParamsAndSetUpHeader();
-processRequest();
+if (!isset($runner)) {
+    \ACDH\FCSSRU\getParamsAndSetUpHeader();
+    SRUFromMysqlBase::processRequest();
+}
 

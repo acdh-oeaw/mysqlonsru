@@ -14,11 +14,32 @@
 
 namespace ACDH\FCSSRU\mysqlonsru;
 
+use ACDH\FCSSRU\mysqlonsru\SRUFromMysqlBase;
+
 /**
  * Load configuration and common functions
  */
-require_once "common.php";
 
+require_once __DIR__ . "/common.php";;
+
+class ProfileOnSRU extends SRUFromMysqlBase {
+
+public function populateSampleTextResult($escapedQueryString, $db, $region) {
+    global $profileTable;
+
+    $description = "Arabic dialect sample text for the region of $region";
+    $sqlstr = "SELECT DISTINCT sid, entry FROM $profileTable ";
+    $sqlstr.= "WHERE sid " . 
+            (strpos($escapedQueryString, '%') !== false ? 'LIKE' : '=') .
+            " '$escapedQueryString'";
+    $this->populateSearchResult($db, $sqlstr, $description);
+}
+
+public function getLemmaWhereClause($query) {
+    return "WHERE lemma LIKE '%" . $this->encodecharrefs($query) . "%'";
+}
+
+}
 /**
  * Generates a response according to ZeeRex
  * 
@@ -29,7 +50,10 @@ require_once "common.php";
  */
  function explain()
  {
-    $db = db_connect();
+    
+    $base = new SRUFromMysqlBase();
+        
+    $db = $base->db_connect();
     if ($db->connect_errno) {
         return;
     }
@@ -95,7 +119,7 @@ require_once "common.php";
         'sort' => 'false',
     ));
     
-    populateExplainResult($db, "$profileTable", "$profileTable", $maps);
+    $base->populateExplainResult($db, "$profileTable", "$profileTable", $maps);
  }
 
  /**
@@ -108,8 +132,10 @@ require_once "common.php";
  function search() {
     global $profileTable;
     global $sru_fcs_params;
-
-    $db = db_connect();
+    
+    $base = new ProfileOnSRU();
+        
+    $db = $base->db_connect();
     if ($db->connect_errno) {
         return;
     }    
@@ -117,48 +143,48 @@ require_once "common.php";
     $sru_fcs_params->query = str_replace("\"", "", $sru_fcs_params->query);
     $query = "";
     $description = "";
-    $profile_query = get_search_term_for_wildcard_search("profile", $sru_fcs_params->query);
+    $profile_query = $base->get_search_term_for_wildcard_search("profile", $sru_fcs_params->query);
     if (!isset($profile_query) && (stripos($profileTable, "profile") !== false)) {
-        $profile_query = get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
+        $profile_query = $base->get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
     }
-    $geo_query = get_search_term_for_wildcard_search("geo", $sru_fcs_params->query);
-    $profile_query_exact = get_search_term_for_exact_search("profile", $sru_fcs_params->query);
+    $geo_query = $base->get_search_term_for_wildcard_search("geo", $sru_fcs_params->query);
+    $profile_query_exact = $base->get_search_term_for_exact_search("profile", $sru_fcs_params->query);
     if (!isset($profile_query_exact) && (stripos($profileTable, "profile") !== false)) {
-        $profile_query_exact = get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
+        $profile_query_exact = $base->get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
     }
-    $sampleText_query_exact = get_search_term_for_exact_search("sampleText", $sru_fcs_params->query);
+    $sampleText_query_exact = $base->get_search_term_for_exact_search("sampleText", $sru_fcs_params->query);
     if (!isset($sampleText_query_exact) && (stripos($profileTable, "sampletext") !== false)) {
-        $sampleText_query_exact = get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
+        $sampleText_query_exact = $base->get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
     }
-    $sampleText_query = get_search_term_for_wildcard_search("sampleText", $sru_fcs_params->query);
+    $sampleText_query = $base->get_search_term_for_wildcard_search("sampleText", $sru_fcs_params->query);
     if (!isset($sampleText_query) && (stripos($profileTable, "sampletext") !== false)) {
-        $sampleText_query = get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
+        $sampleText_query = $base->get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
     }    
-    $text_query_exact = get_search_term_for_exact_search("text", $sru_fcs_params->query);
+    $text_query_exact = $base->get_search_term_for_exact_search("text", $sru_fcs_params->query);
     if (!isset($text_query_exact) && (stripos($profileTable, "texts") !== false)) {
-        $text_query_exact = get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
+        $text_query_exact = $base->get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
     }
-    $text_query = get_search_term_for_wildcard_search("text", $sru_fcs_params->query);
+    $text_query = $base->get_search_term_for_wildcard_search("text", $sru_fcs_params->query);
     if (!isset($text_query) && (stripos($profileTable, "texts") !== false)) {
-        $text_query = get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
+        $text_query = $base->get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
     }
-    $metaText_query_exact = get_search_term_for_exact_search("metaText", $sru_fcs_params->query);
+    $metaText_query_exact = $base->get_search_term_for_exact_search("metaText", $sru_fcs_params->query);
     if (!isset($metaText_query_exact) && (stripos($profileTable, "meta") !== false)) {
-        $metaText_query_exact = get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
+        $metaText_query_exact = $base->get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
     }
-    $metaText_query = get_search_term_for_wildcard_search("metaText", $sru_fcs_params->query);
+    $metaText_query = $base->get_search_term_for_wildcard_search("metaText", $sru_fcs_params->query);
     if (!isset($metaText_query) && (stripos($profileTable, "meta") !== false)) {
-        $metaText_query = get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
+        $metaText_query = $base->get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
     }
-    $toolsText_query_exact = get_search_term_for_exact_search("toolsText", $sru_fcs_params->query);
+    $toolsText_query_exact = $base->get_search_term_for_exact_search("toolsText", $sru_fcs_params->query);
     if (!isset($toolsText_query_exact) && (stripos($profileTable, "tools") !== false)) {
-        $toolsText_query_exact = get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
+        $toolsText_query_exact = $base->get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
     }
-    $toolsText_query = get_search_term_for_wildcard_search("toolsText", $sru_fcs_params->query);
+    $toolsText_query = $base->get_search_term_for_wildcard_search("toolsText", $sru_fcs_params->query);
     if (!isset($toolsText_query) && (stripos($profileTable, "tools") !== false)) {
-        $toolsText_query = get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
+        $toolsText_query = $base->get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
     }
-    $geo_query_exact = get_search_term_for_exact_search("geo", $sru_fcs_params->query);
+    $geo_query_exact = $base->get_search_term_for_exact_search("geo", $sru_fcs_params->query);
     // there is no point in having a fuzzy geo search yet so treat it as exact always
     if (!isset($geo_query_exact)) {
         $geo_query_exact = $geo_query;
@@ -169,8 +195,8 @@ require_once "common.php";
        "distinct-values" => false,
     );
  
-    $rfpid_query = get_search_term_for_wildcard_search("rfpid", $sru_fcs_params->query);
-    $rfpid_query_exact = get_search_term_for_exact_search("rfpid", $sru_fcs_params->query);
+    $rfpid_query = $base->get_search_term_for_wildcard_search("rfpid", $sru_fcs_params->query);
+    $rfpid_query_exact = $base->get_search_term_for_exact_search("rfpid", $sru_fcs_params->query);
     if (!isset($rfpid_query_exact)) {
         $rfpid_query_exact = $rfpid_query;
     }
@@ -221,27 +247,17 @@ require_once "common.php";
                (stripos($profileTable, "meta") !== false) ||
                (stripos($profileTable, "texts") !== false) ||
                (stripos($profileTable, "tools") !== false)) {
-                $sqlstr.= "WHERE lemma LIKE '%" . encodecharrefs($query) . "%'";
+                $sqlstr.= $base->getLemmaWhereClause($query);
            } else if (stripos($profileTable, "sampletext") !== false) {
                 $regionGuess = explode('_', $query);                
-                populateSampleTextResult("%" . $db->escape_string(encodecharrefs(strtolower($query))) . "%", $db, $regionGuess[0]);
+                $base->populateSampleTextResult("%" . $db->escape_string(encodecharrefs(strtolower($query))) . "%", $db, $regionGuess[0]);
                 return;
             }
         }
     }   
-    populateSearchResult($db, $sqlstr, $description);
+    $base->populateSearchResult($db, $sqlstr, $description);
 }
 
-function populateSampleTextResult($escapedQueryString, $db, $region) {
-    global $profileTable;
-
-    $description = "Arabic dialect sample text for the region of $region";
-    $sqlstr = "SELECT DISTINCT sid, entry FROM $profileTable ";
-    $sqlstr.= "WHERE sid " . 
-            (strpos($escapedQueryString, '%') !== false ? 'LIKE' : '=') .
-            " '$escapedQueryString'";
-    populateSearchResult($db, $sqlstr, $description);
-}
 /**
  * Lists the entries from the lemma column in the $profileTable database
  * 
@@ -255,8 +271,10 @@ function populateSampleTextResult($escapedQueryString, $db, $region) {
 function scan() {
     global $sru_fcs_params;
     global $profileTable;
-
-    $db = db_connect();
+    
+    $base = new SRUFromMysqlBase();
+        
+    $db = $base->db_connect();
     if ($db->connect_errno) {
         return;
     }
@@ -304,7 +322,7 @@ function scan() {
        $sqlstr = "SELECT DISTINCT lemma, id, sid, COUNT(*) FROM $profileTable " .
               "WHERE lemma NOT LIKE '[%]' GROUP BY lemma";           
     } else if ($sru_fcs_params->scanClause === 'geo') {
-       $sqlstr = sqlForXPath("$profileTable", "geo-",
+       $sqlstr = $base->sqlForXPath("$profileTable", "geo-",
                array("show-lemma" => true,
                      "distinct-values" => true,
            )); 
@@ -313,10 +331,11 @@ function scan() {
         return;
     }
     
-    populateScanResult($db, $sqlstr);
+    $base->populateScanResult($db, $sqlstr);
 }
-
-\ACDH\FCSSRU\getParamsAndSetUpHeader();
-$profileTable = $sru_fcs_params->xcontext;
-processRequest();
+if (!isset($runner)) {
+    \ACDH\FCSSRU\getParamsAndSetUpHeader();
+    $profileTable = $sru_fcs_params->xcontext;
+    SRUFromMysqlBase::processRequest();
+}
 

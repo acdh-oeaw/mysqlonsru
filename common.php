@@ -20,6 +20,13 @@ use clausvb\vlib\vlibTemplate;
  */
 require_once $dbConfigFile;
 
+class SRUFromMysqlBase {
+    /**
+     * Whether processSearchResult is called.
+     * @var boolean
+     */
+    protected $extendedSearchResultProcessing = false;
+    
 /**
  * Get a database connection object (currently mysqli)
  * 
@@ -29,7 +36,7 @@ require_once $dbConfigFile;
  * @uses $database
  * @return \mysqli
  */
-function db_connect() {
+public function db_connect() {
     global $server;
     global $user;
     global $password;
@@ -49,7 +56,7 @@ function db_connect() {
  * @return string The decoded string as an UTF-8 encoded string. May contain
  *                characters that need to be escaped in XML/XHTML.
  */
-function decodecharrefs($str) {
+protected function decodecharrefs($str) {
     $replacements = array(
         "#8#38#9#" => '&amp;amp;', // & -> &amp;
         "#9#" => ";",
@@ -71,7 +78,7 @@ function decodecharrefs($str) {
  * @param type $str String to encode.
  * @return type Encoded String
  */
-function encodecharrefs($str) {
+protected function encodecharrefs($str) {
     if ($str === null) {return null;}
     $replacements = array(
         ";" => "#9#",
@@ -88,7 +95,7 @@ function encodecharrefs($str) {
     return $htmlEncodedStr;
 }
 
-function _or($string1, $string2) {
+protected function _or($string1, $string2) {
     if (($string1 !== "") and ($string2 !== "")) {
         return ("($string1) OR ($string2)");
     } else if ($string2 !== "") {
@@ -98,7 +105,7 @@ function _or($string1, $string2) {
     }
 }
 
-function _and($string1, $string2) {
+protected function _and($string1, $string2) {
     if (($string1 !== "") and ($string2 !== "")) {
         return ("($string1) AND ($string2)");
     } else if ($string2 !== "") {
@@ -138,7 +145,7 @@ function _and($string1, $string2) {
  *                                xpath => Overrides $xpath.                   
  * @return string
  */
-function sqlForXPath($table, $xpath, $options = NULL) {
+public function sqlForXPath($table, $xpath, $options = NULL) {
     $lemma = "";
     $query = "";
     $filter = "";
@@ -164,7 +171,7 @@ function sqlForXPath($table, $xpath, $options = NULL) {
 //            }
 //        }
         if (isset($options["xpath-filters"])) {
-            $tableOrPrefilter = genereatePrefilterSql($indexTable, $options);
+            $tableOrPrefilter = $this->genereatePrefilterSql($indexTable, $options);
         } else {
             $tableOrPrefilter = $indexTable;
         }
@@ -177,7 +184,7 @@ function sqlForXPath($table, $xpath, $options = NULL) {
             $likeXpath .= ')';
         }
         if (isset($options["query"])) {
-            $q = encodecharrefs($options["query"]);
+            $q = $this->encodecharrefs($options["query"]);
             if (isset($options["exact"]) && $options["exact"] === true) {
                $query .= "ndx.txt = '$q'";
             } else {
@@ -186,7 +193,7 @@ function sqlForXPath($table, $xpath, $options = NULL) {
         }
 
         $indexTable = "(SELECT ndx.id, ndx.txt FROM " . $tableOrPrefilter .
-                " AS ndx WHERE "._and($query, _and($filter, $likeXpath)).
+                " AS ndx WHERE ". $this->_and($query, $this->_and($filter, $likeXpath)).
                 // There seems no point in reporting all id + txt if the query did match a lot of txt
                 ' GROUP BY ndx.id)';
         // base
@@ -220,7 +227,7 @@ function sqlForXPath($table, $xpath, $options = NULL) {
             $groupAndLimit;            
 }
 
-function genereatePrefilterSql($table, $options) {
+protected function genereatePrefilterSql($table, $options) {
     $recursiveOptions = $options;
     $recursiveOptions["xpath-filters"] = array_slice($recursiveOptions["xpath-filters"], 2, 0, true);
     if (count($recursiveOptions["xpath-filters"]) === 0) {
@@ -248,7 +255,7 @@ function genereatePrefilterSql($table, $options) {
  * Get the URL the client requested so this script was called
  * @return string The URL the client requested.
  */
-function curPageURL() {
+protected function curPageURL() {
     $pageURL = 'http';
     if (isset($_SERVER["HTTPS"]) && $_SERVER["HTTPS"] == "on") {
         $pageURL .= "s";
@@ -278,11 +285,11 @@ function curPageURL() {
  *                       sott bool
  * @see http://zeerex.z3950.org/overview/index.html
  */
-function populateExplainResult ($db, $table, $publicName, $indices) {
+public function populateExplainResult ($db, $table, $publicName, $indices) {
     global $explainTemplate;
     global $sru_fcs_params;
     
-    $teiHeaderXML = getMetadataAsXML($db, $table);
+    $teiHeaderXML = $this->getMetadataAsXML($db, $table);
     $title = "";
     $authors = "";
     $restrictions = "";
@@ -304,7 +311,7 @@ function populateExplainResult ($db, $table, $publicName, $indices) {
 //                $xmlDocXPath->evaluate('string(//editionStmt/edition)') . '.';
         $frontMatterXML = null;
         if (strpos($sru_fcs_params->xdataview, 'metadata') === false) {
-            $frontMatterXML = getFrontMatterAsXML($db, $table);
+            $frontMatterXML = $this->getFrontMatterAsXML($db, $table);
         }
         if ($frontMatterXML !== null) {
             $description = $frontMatterXML->document->saveXML($frontMatterXML->document->firstChild);
@@ -334,9 +341,9 @@ function populateExplainResult ($db, $table, $publicName, $indices) {
  * @param type $table The table in the db that should be queried
  * @return \DOMXPath|null The metadata (teiHeader) as 
  */
-function getMetadataAsXML($db, $table) {
+protected function getMetadataAsXML($db, $table) {
     // It is assumed that there is a teiHeader for the resource with this well knonwn id 1
-    return getWellKnownTEIPartAsXML($db, $table, 1);
+    return $this->getWellKnownTEIPartAsXML($db, $table, 1);
 }
 
 /**
@@ -346,9 +353,9 @@ function getMetadataAsXML($db, $table) {
  * @param type $table The table in the db that should be queried
  * @return \DOMXPath|null The front matter
  */
-function getFrontMatterAsXML($db, $table) {
+protected function getFrontMatterAsXML($db, $table) {
     // It is assumed that there is a front part for the resource with this well knonwn id 5
-    return getWellKnownTEIPartAsXML($db, $table, 5);
+    return $this->getWellKnownTEIPartAsXML($db, $table, 5);
 }
 
 /**
@@ -359,12 +366,12 @@ function getFrontMatterAsXML($db, $table) {
  * @param type $id The well known id of the TEI part to fetch 
  * @return \DOMXPath|null Some TEI-XML, null if the id is not in teh db
  */
-function getWellKnownTEIPartAsXML ($db, $table, $id) {
+protected function getWellKnownTEIPartAsXML ($db, $table, $id) {
     $result = $db->query("SELECT entry FROM $table WHERE id = $id");
     if ($result !== false) {
         $line = $result->fetch_array();
         if (is_array($line) && trim($line[0]) !== "") {
-            return getTEIDataAsXMLQueryObject(decodecharrefs($line[0]));
+            return $this->getTEIDataAsXMLQueryObject($this->decodecharrefs($line[0]));
         } else {
             return null;
         }
@@ -379,7 +386,7 @@ function getWellKnownTEIPartAsXML ($db, $table, $id) {
  * @param type $xmlText A chunk of TEI XML
  * @return \DOMXPath The input text consisting of TEI XML as DOMXPath queryable object
  */
-function getTEIDataAsXMLQueryObject($xmlText) {
+protected function getTEIDataAsXMLQueryObject($xmlText) {
     $trimmedXMLText = trim($xmlText);
     if ($trimmedXMLText[0] !== '<') {
         return null;
@@ -403,21 +410,13 @@ function getTEIDataAsXMLQueryObject($xmlText) {
  *                          sqlForPath;
  *                          or a query string to exequte using $db->query()
  * @param string $description A description used by the $responseTemplate.
- * @param function $processResult An optional (name of a) function called on every result record
- *                                so additional processing may be done. The default
- *                                is to return the result fetched from the DB as is.
- *                                The function receives the record line (array) returned by
- *                                the database as input and the db access object.
- *                                It is expected to return
- *                                the content that is placed at the appropriate
- *                                position in the returned XML document.
  * @param comparatorFactory $comparatorFactory A class that can create a comporator for sorting the result.
  */
-function populateSearchResult($db, $sql, $description, $processResult = NULL, $comparatorFactory = NULL) {
+public function populateSearchResult($db, $sql, $description, $comparatorFactory = NULL) {
     global $responseTemplate;
     global $sru_fcs_params;
     
-    $baseURL = curPageURL();
+    $baseURL = $this->curPageURL();
     
     $dbTeiHeaderXML = null;
     $wantTitle = (stripos($sru_fcs_params->xdataview, 'title') !== false);
@@ -426,15 +425,15 @@ function populateSearchResult($db, $sql, $description, $processResult = NULL, $c
     $extraCountSql = false;
     if (is_array($sql)) {
         $options = $sql;
-        $sql = sqlForXPath("", "", $options);
+        $sql = $this->sqlForXPath("", "", $options);
         if ($wantMetadata || $wantTitle) {
-            $dbTeiHeaderXML = getMetadataAsXML($db, $options['dbtable']);
+            $dbTeiHeaderXML = $this->getMetadataAsXML($db, $options['dbtable']);
         }
         if (isset($options["maximumRecords"])) {
             $options["startRecord"] = NULL;
             $options["maximumRecords"] = NULL;
             $options["justCount"] = true;
-            $countSql = sqlForXPath("", "", $options);
+            $countSql = $this->sqlForXPath("", "", $options);
             $result = $db->query($countSql);
             if ($result !== false) {
                 $line = $result->fetch_row();
@@ -444,7 +443,7 @@ function populateSearchResult($db, $sql, $description, $processResult = NULL, $c
     } else if ($wantMetadata || $wantTitle) {
         $dbtable = preg_filter('/.* FROM (\\w+) .*/', '$1', $sql);
         if ($dbtable !== false) {
-            $dbTeiHeaderXML = getMetadataAsXML($db, $dbtable);
+            $dbTeiHeaderXML = $this->getMetadataAsXML($db, $dbtable);
         }
     }
     
@@ -480,17 +479,17 @@ function populateSearchResult($db, $sql, $description, $processResult = NULL, $c
 
         while (($line = $result->fetch_row()) !== NULL) {
             //$id = $line[0];
-            if (isset($processResult)) {
-                $content = $processResult($line, $db);
+            if ($this->extendedSearchResultProcessing === true) {
+                $content = $this->processSearchResult($line, $db);
             } else {
                 $content = $line[1];
             }
             
-            $decodedContent = decodecharrefs($content);
+            $decodedContent = $this->decodecharrefs($content);
             $title = "";
             
             if ($wantTitle) {               
-                $contentXPath = getTEIDataAsXMLQueryObject($decodedContent);
+                $contentXPath = $this->getTEIDataAsXMLQueryObject($decodedContent);
                 if (isset($contextXPath)) {
                     foreach ($contentXPath->query('//teiHeader/fileDesc/titleStmt/title') as $node) {
                         $title .= $node->textContent;
@@ -530,31 +529,22 @@ function populateSearchResult($db, $sql, $description, $processResult = NULL, $c
     }
 }
 
-class comparatorFactory {
-    
-    /**
-     *
-     * @var string the query string passed for searchRetrieve 
-     */
-    protected $query;
-    
-    public function __construct($query) {
-        $this->query = $query;
-    }
-    
-    /**
-     * Dummy, override to create your comparator.
-     * @return searchResultComparator
-     */
-    public function createComparator() {
-        return new searchResultComparator();
-    }
-}
-
-class searchResultComparator {
-    public function sortSearchResult($a, $b) {
-        return 0;
-    }
+/**
+ * An optional function called on every result record if $extendedSearchResultProcessing is true
+ * so additional processing may be done. The default
+ * is to return the result fetched from the DB as is.
+ * The function receives the record line (array) returned by
+ * the database as input and the db access object.
+ * It is expected to return
+ * the content that is placed at the appropriate
+ * position in the returned XML document. 
+ * @param array $line Array like object that represents the current line in the database.
+ * @param /mysqli $db The database access object (note: remove it, change to member variable).
+ * @return string
+ */
+protected function processSearchResult($line, $db) {
+    // Note: just a dummy, not called by default.
+    return $line[1];    
 }
 
 /**
@@ -573,7 +563,7 @@ class searchResultComparator {
  * @param bool $exact If the start word needs to be exactly the specified or
  *                    if it should be just anywhere in the string.
  */
-function populateScanResult($db, $sqlstr, $entry = NULL, $exact = true, $isNumber = false) {
+public function populateScanResult($db, $sqlstr, $entry = NULL, $exact = true, $isNumber = false) {
     global $scanTemplate;
     global $sru_fcs_params;
     
@@ -590,7 +580,7 @@ function populateScanResult($db, $sqlstr, $entry = NULL, $exact = true, $isNumbe
         while (($row = $result->fetch_array()) !== NULL) {
             $entry_count = isset($row["COUNT(*)"]) ? $row["COUNT(*)"]: 1;
             $term = array(
-                'value' => decodecharrefs($row[0]),
+                'value' => $this->decodecharrefs($row[0]),
                 'numberOfRecords' => $entry_count,
             );
             // for sorting ignore some punctation marks etc.
@@ -601,8 +591,8 @@ function populateScanResult($db, $sqlstr, $entry = NULL, $exact = true, $isNumbe
             if ($term["sortValue"] === "") {
                 $term["sortValue"] = "zzz";
             }
-            if (isset($row["lemma"]) && decodecharrefs($row["lemma"]) !== $term["value"]) {
-                $term["displayTerm"] = decodecharrefs($row["lemma"]);
+            if (isset($row["lemma"]) && $this->decodecharrefs($row["lemma"]) !== $term["value"]) {
+                $term["displayTerm"] = $this->decodecharrefs($row["lemma"]);
             }
             $terms[$i++] = $term;
         }
@@ -653,7 +643,7 @@ function populateScanResult($db, $sqlstr, $entry = NULL, $exact = true, $isNumbe
  * operation member of $sru_fcs_params.
  * @uses $sru_fcs_params
  */
-function processRequest() {
+public static function processRequest() {
     global $sru_fcs_params;
     
     if ($sru_fcs_params->operation == "explain" || $sru_fcs_params->operation == "") {
@@ -675,14 +665,14 @@ function processRequest() {
  * @return string|NULL The term to search for, NULL if this is not the index the user wanted. The string
  * is encoded as needed by the web_dict dbs!
  */
-function get_search_term_for_wildcard_search($index, $queryString, $index_context = NULL) {
+public function get_search_term_for_wildcard_search($index, $queryString, $index_context = NULL) {
     $ret = NULL;
     if (isset($index_context)) {
         $ret = preg_filter('/(' . $index_context . '\.)?' . $index . ' *(=|any) *(.*)/', '$3', $queryString);
     } else {
         $ret = preg_filter('/' . $index . ' *(=|any) *(.*)/', '$2', $queryString);
     }
-    return encodecharrefs($ret);
+    return $this->encodecharrefs($ret);
 }
 
 /**
@@ -699,14 +689,14 @@ function get_search_term_for_wildcard_search($index, $queryString, $index_contex
  * @return string|NULL NULL if this is not the index the user wanted. The string
  * is encoded as needed by the web_dict dbs!
  */
-function get_search_term_for_exact_search($index, $queryString, $index_context = NULL) {
+public function get_search_term_for_exact_search($index, $queryString, $index_context = NULL) {
     $ret = NULL;
     if (isset($index_context)) {
         $ret = preg_filter('/(' . $index_context . '\.)?' . $index . ' *(==|(cql\.)?string) *(.*)/', '$4', $queryString);
     } else {
         $ret = preg_filter('/' . $index . ' *(==|(cql\.)?string) *(.*)/', '$3', $queryString);
     }
-    return encodecharrefs($ret);
+    return $this->encodecharrefs($ret);
 }
 
 /**
@@ -716,7 +706,7 @@ function get_search_term_for_exact_search($index, $queryString, $index_context =
  *                      the last part of the search string
  *                      or just the input string if it didn't contain wildcards
  */
-function get_wild_card_search($input) {
+protected function get_wild_card_search($input) {
     $search = preg_filter('/(\w*)([?*][?]*)(\w*)/', '$1&$2&$3', $input);
     if (isset($search)) {
         $ret = explode("&", $search);
@@ -724,4 +714,31 @@ function get_wild_card_search($input) {
         $ret = $input;
     }
     return $ret;
+}
+}
+class comparatorFactory {
+    
+    /**
+     *
+     * @var string the query string passed for searchRetrieve 
+     */
+    protected $query;
+    
+    public function __construct($query) {
+        $this->query = $query;
+    }
+    
+    /**
+     * Dummy, override to create your comparator.
+     * @return searchResultComparator
+     */
+    public function createComparator() {
+        return new searchResultComparator();
+    }
+}
+
+class searchResultComparator {
+    public function sortSearchResult($a, $b) {
+        return 0;
+    }
 }

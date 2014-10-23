@@ -16,12 +16,71 @@
 
 namespace ACDH\FCSSRU\mysqlonsru;
 
+use ACDH\FCSSRU\mysqlonsru\SRUFromMysqlBase;
+
 /**
  * Load configuration and common functions
  */
 
-require_once "common.php";
+require_once __DIR__ . "/common.php";
 
+class GlossaryOnSRU extends SRUFromMysqlBase {
+
+    public function __construct() {
+        $this->extendedSearchResultProcessing = true;
+    }
+    
+protected function processSearchResult($line, $db) {
+    global $glossTable;
+    
+    $xmlcode = str_replace("\n\n", "\n", $this->decodecharrefs($line[1]));
+
+    $doc = new \DOMDocument();
+    $doc->loadXML($xmlcode);
+
+    $xpath = new \DOMXpath($doc);
+    $elements = $xpath->query("//ptr[@type='example' or @type='multiWordUnit']");
+
+    if ((!is_null($elements)) && ($elements->length != 0)) {
+        $attr = array();
+        foreach ($elements as $element) {
+            $attr[] = "'" . $element->attributes->getNamedItem("target")->nodeValue . "'";
+        }
+
+        if (count($attr) != 0) {
+            $hstr = "SELECT sid, entry FROM $glossTable WHERE sid IN (";
+            $hstr .= implode(",", $attr);
+            $hstr .= ")";
+            //print $hstr;
+
+            $subresult = $db->query($hstr);
+            while ($subline = $subresult->fetch_row()) {
+                $elements = $xpath->query("//ptr[@target='" . $subline[0] . "']");
+                if ((!is_null($elements)) && ($elements->length != 0)) {
+                    // XML ID will be twice in the result as this script selects
+                    // every occurence of the query. Better solved using XQuery
+                    // -> TODO
+                    $subline[1] = preg_replace('/xml:id=["\'][^\\s]*["\']/', "", $subline[1]);
+                    $newNodeParent = $doc->createElement('dummy', $subline[1]);
+
+                    if ($newNodeParent->hasChildNodes() === TRUE) {
+                        $newNode = $newNodeParent->childNodes->item(0);
+                    }
+
+                    $oldNode = $elements->item(0);
+
+                    $parent = $oldNode->parentNode;
+                    $parent->replaceChild($newNode, $oldNode);
+                }
+            }
+        }        
+    }
+    $content = str_replace("<?xml version=\"1.0\"?>", "", $doc->saveXML());
+    $content = str_replace("&lt;", "<", str_replace("&gt;", ">", $content));
+    return $content;
+}
+
+}
 $restrictedGlossaries = array(
     "apc_eng_002",
     "aeb_eng_001__v001",
@@ -115,7 +174,9 @@ class glossarySearchResultComparator extends searchResultComparator {
         return; 
     }
     
-    $db = db_connect();
+    $base = new SRUFromMysqlBase();
+        
+    $db = $base->db_connect();
     if ($db->connect_errno) {
         return;
     }
@@ -148,59 +209,9 @@ class glossarySearchResultComparator extends searchResultComparator {
         'scan' => 'true',
         'sort' => 'false',
     ));
-        
-    populateExplainResult($db, $glossTable, $glossTable, $maps);
+    
+    $base->populateExplainResult($db, $glossTable, $glossTable, $maps);
  }
-
- function processSearchResult($line, $db) {
-    global $glossTable;
-
-    $xmlcode = str_replace("\n\n", "\n", decodecharrefs($line[1]));
-
-    $doc = new \DOMDocument();
-    $doc->loadXML($xmlcode);
-
-    $xpath = new \DOMXpath($doc);
-    $elements = $xpath->query("//ptr[@type='example' or @type='multiWordUnit']");
-
-    if ((!is_null($elements)) && ($elements->length != 0)) {
-        $attr = array();
-        foreach ($elements as $element) {
-            $attr[] = "'" . $element->attributes->getNamedItem("target")->nodeValue . "'";
-        }
-
-        if (count($attr) != 0) {
-            $hstr = "SELECT sid, entry FROM $glossTable WHERE sid IN (";
-            $hstr .= implode(",", $attr);
-            $hstr .= ")";
-            //print $hstr;
-
-            $subresult = $db->query($hstr);
-            while ($subline = $subresult->fetch_row()) {
-                $elements = $xpath->query("//ptr[@target='" . $subline[0] . "']");
-                if ((!is_null($elements)) && ($elements->length != 0)) {
-                    // XML ID will be twice in the result as this script selects
-                    // every occurence of the query. Better solved using XQuery
-                    // -> TODO
-                    $subline[1] = preg_replace('/xml:id=["\'][^\\s]*["\']/', "", $subline[1]);
-                    $newNodeParent = $doc->createElement('dummy', $subline[1]);
-
-                    if ($newNodeParent->hasChildNodes() === TRUE) {
-                        $newNode = $newNodeParent->childNodes->item(0);
-                    }
-
-                    $oldNode = $elements->item(0);
-
-                    $parent = $oldNode->parentNode;
-                    $parent->replaceChild($newNode, $oldNode);
-                }
-            }
-        }        
-    }
-    $content = str_replace("<?xml version=\"1.0\"?>", "", $doc->saveXML());
-    $content = str_replace("&lt;", "<", str_replace("&gt;", ">", $content));
-    return $content;
-}
  
 /**
  * 
@@ -213,8 +224,10 @@ class glossarySearchResultComparator extends searchResultComparator {
     global $glossTable;
     global $sru_fcs_params;
     global $restrictedGlossaries;
-
-    $db = db_connect();
+    
+    $base = new GlossaryOnSRU();
+        
+    $db = $base->db_connect();
     if ($db->connect_errno) {
         return;
     }
@@ -226,25 +239,25 @@ class glossarySearchResultComparator extends searchResultComparator {
         );
     $options["startRecord"] = $sru_fcs_params->startRecord;
     $options["maximumRecords"] = $sru_fcs_params->maximumRecords;
-    $lemma_query = get_search_term_for_wildcard_search("entry", $sru_fcs_params->query);
+    $lemma_query = $base->get_search_term_for_wildcard_search("entry", $sru_fcs_params->query);
     if (!isset($lemma_query)) {
-        $lemma_query = get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
+        $lemma_query = $base->get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
     }
-    $lemma_query_exact = get_search_term_for_exact_search("entry", $sru_fcs_params->query);
+    $lemma_query_exact = $base->get_search_term_for_exact_search("entry", $sru_fcs_params->query);
     if (!isset($lemma_query_exact)) {
-        $lemma_query_exact = get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
+        $lemma_query_exact = $base->get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
     }
-    $sense_query_exact = get_search_term_for_exact_search("sense", $sru_fcs_params->query);
-    $sense_query = get_search_term_for_wildcard_search("sense", $sru_fcs_params->query);
+    $sense_query_exact = $base->get_search_term_for_exact_search("sense", $sru_fcs_params->query);
+    $sense_query = $base->get_search_term_for_wildcard_search("sense", $sru_fcs_params->query);
  
-    $rfpid_query = get_search_term_for_wildcard_search("rfpid", $sru_fcs_params->query);
-    $rfpid_query_exact = get_search_term_for_exact_search("rfpid", $sru_fcs_params->query);
+    $rfpid_query = $base->get_search_term_for_wildcard_search("rfpid", $sru_fcs_params->query);
+    $rfpid_query_exact = $base->get_search_term_for_exact_search("rfpid", $sru_fcs_params->query);
     if (!isset($rfpid_query_exact)) {
         $rfpid_query_exact = $rfpid_query;
     }
     if (isset($rfpid_query_exact)) {
         $query = $db->escape_string($rfpid_query_exact);
-        populateSearchResult($db, "SELECT id, entry, sid, 1 FROM $glossTable WHERE id=$query", "Resource Fragment for pid");
+        $base->populateSearchResult($db, "SELECT id, entry, sid, 1 FROM $glossTable WHERE id=$query", "Resource Fragment for pid");
         return;
     } else if (isset($sense_query_exact)) {
         $options["query"] = $db->escape_string($sense_query_exact);
@@ -269,8 +282,7 @@ class glossarySearchResultComparator extends searchResultComparator {
         );
     }
 
-    populateSearchResult($db, $options, "Glossary for " . $options["query"],
-            '\\ACDH\\FCSSRU\\mysqlonsru\\processSearchResult',
+    $base->populateSearchResult($db, $options, "Glossary for " . $options["query"],
             new glossaryComparatorFactory($options["query"]));
  }
 
@@ -290,7 +302,10 @@ function scan() {
     global $sru_fcs_params;
     global $restrictedGlossaries;
 
-    $db = db_connect();
+    
+    $base = new SRUFromMysqlBase();
+        
+    $db = $base->db_connect();
     if ($db->connect_errno) {
         return;
     }
@@ -315,21 +330,21 @@ function scan() {
         strpos($sru_fcs_params->scanClause, 'entry') === 0 ||
         strpos($sru_fcs_params->scanClause, 'serverChoice') === 0 ||
         strpos($sru_fcs_params->scanClause, 'cql.serverChoice') === 0) {
-       $sqlstr = sqlForXPath($glossTable, "", $options);     
+       $sqlstr = $base->sqlForXPath($glossTable, "", $options);     
     } else if (strpos($sru_fcs_params->scanClause, 'sense') === 0) {
-       $sqlstr = sqlForXPath($glossTable, "-quote-", $options); 
+       $sqlstr = $base->sqlForXPath($glossTable, "-quote-", $options); 
     } else {
         \ACDH\FCSSRU\diagnostics(51, 'Result set: ' . $sru_fcs_params->scanClause);
         return;
     }
     
-    $lemma_query = get_search_term_for_wildcard_search("entry", $sru_fcs_params->scanClause);
+    $lemma_query = $base->get_search_term_for_wildcard_search("entry", $sru_fcs_params->scanClause);
     if (!isset($lemma_query)) {
-        $lemma_query = get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->scanClause, "cql");
+        $lemma_query = $base->get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->scanClause, "cql");
     }
-    $lemma_query_exact = get_search_term_for_exact_search("entry", $sru_fcs_params->scanClause);
+    $lemma_query_exact = $base->get_search_term_for_exact_search("entry", $sru_fcs_params->scanClause);
     if (!isset($lemma_query_exact)) {
-        $lemma_query_exact = get_search_term_for_exact_search("serverChoice", $sru_fcs_params->scanClause, "cql");
+        $lemma_query_exact = $base->get_search_term_for_exact_search("serverChoice", $sru_fcs_params->scanClause, "cql");
     }
     
     $exact = false;
@@ -344,10 +359,10 @@ function scan() {
         $exact = false;
     }
     
-    populateScanResult($db, $sqlstr, $scanClause, $exact);
+    $base->populateScanResult($db, $sqlstr, $scanClause, $exact);
 }
 if (!isset($runner)) {
     \ACDH\FCSSRU\getParamsAndSetUpHeader();
     $glossTable = $sru_fcs_params->xcontext;
-    processRequest();
+    SRUFromMysqlBase::processRequest();
 }
