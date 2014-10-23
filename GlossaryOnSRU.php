@@ -16,7 +16,9 @@
 
 namespace ACDH\FCSSRU\mysqlonsru;
 
-use ACDH\FCSSRU\mysqlonsru\SRUFromMysqlBase;
+use ACDH\FCSSRU\mysqlonsru\SRUFromMysqlBase,
+    ACDH\FCSSRU\SRUDiagnostics,
+    ACDH\FCSSRU\SRUWithFCSParameters;
 
 /**
  * Load configuration and common functions
@@ -26,7 +28,8 @@ require_once __DIR__ . "/common.php";
 
 class GlossaryOnSRU extends SRUFromMysqlBase {
 
-    public function __construct() {
+    public function __construct($context, SRUWithFCSParameters $params = null) {
+        parent::__construct($params);
         $this->extendedSearchResultProcessing = true;
     }
     
