@@ -37,6 +37,34 @@ class SRUFromMysqlBase {
      */
     protected $params;
     
+    /**
+     * May contain error information in case of an error.
+     * @var SRUDiagnostics
+     */
+    protected $errorDiagnostics;
+    
+    /**
+     * DB accessor
+     * @var \mysqli
+     */
+    protected $db;
+
+    /**
+     * An array with index configuratiuons. Should contain maps
+     * with the following keys:
+     *                       title string: An intelligable title for the index.
+     *                       name string: The name of the index unterstood by the script
+     *                       search bool
+     *                       scan bool
+     *                       sort bool
+     * @var array 
+     */
+    protected $indices;
+    
+    protected $explainTemplateFilename = '';
+    protected $scanTemplateFilename = '';
+    protected $responseTemplateFilename = '';
+
     public function __construct(SRUWithFCSParameters $params = null) {
         if (!isset($params)) {
             global $sru_fcs_params;
@@ -63,7 +91,7 @@ public function db_connect() {
 
     $db = new \mysqli($server, $user, $password, $database);
     if ($db->connect_errno) {
-        \ACDH\FCSSRU\diagnostics(1, 'MySQL Connection Error: Failed to connect to database: (' . $db->connect_errno . ") " . $db->connect_error);
+        $this->errorDiagnostics = new SRUDiagnostics(1, 'MySQL Connection Error: Failed to connect to database: (' . $db->connect_errno . ") " . $db->connect_error);
     }
     return $db;
 }
@@ -280,35 +308,29 @@ protected function curPageURL() {
         $pageURL .= "s";
     }
     $pageURL .= "://";
-    if ($_SERVER["SERVER_PORT"] != "80") {
+    if (isset($_SERVER["SERVER_PORT"]) && $_SERVER["SERVER_PORT"] != "80") {
         $pageURL .= $_SERVER["SERVER_NAME"] . ":" . $_SERVER["SERVER_PORT"] . $_SERVER["PHP_SELF"];
-    } else {
+    } else if (isset($_SERVER["SERVER_NAME"])) {
         $pageURL .= $_SERVER["SERVER_NAME"] . $_SERVER["PHP_SELF"];
+    } else {
+        $pageURL .= $_SERVER["PHP_SELF"];
     }
     return $pageURL;
 }
-
 /**
- * Fill in the ZeeRex explain template and return it to the client.
+ * Fill in the ZeeRex explain template
  * 
- * @uses $explainTemplate
- * @param object $db
- * @param string $table The table from which the teiHeader at id 1 is fetched.
- * @param string $publicName The public name for this resource.
- * @param array $indices An array with index configuratiuons. Should contain maps
- *                       with the following keys:
- *                       title string: An intelligable title for the index.
- *                       name string: The name of the index unterstood by the script
- *                       search bool
- *                       scan bool
- *                       sott bool
- * @see http://zeerex.z3950.org/overview/index.html
+ * @global type $explainTemplate
+ * @param string $table
+ * @param string $publicName
+ * @return string
  */
-public function populateExplainResult ($db, $table, $publicName, $indices) {
-    global $explainTemplate;
-    
-    
-    $teiHeaderXML = $this->getMetadataAsXML($db, $table);
+protected function getExplainResult($table, $publicName) {
+    if ($this->explainTemplateFilename === '') {
+         global $explainTemplate;
+         $this->explainTemplateFilename = $explainTemplate;
+    }
+    $teiHeaderXML = $this->getMetadataAsXML($this->db, $table);
     $title = "";
     $authors = "";
     $restrictions = "";
@@ -330,7 +352,7 @@ public function populateExplainResult ($db, $table, $publicName, $indices) {
 //                $xmlDocXPath->evaluate('string(//editionStmt/edition)') . '.';
         $frontMatterXML = null;
         if (strpos($this->params->xdataview, 'metadata') === false) {
-            $frontMatterXML = $this->getFrontMatterAsXML($db, $table);
+            $frontMatterXML = $this->getFrontMatterAsXML($this->db, $table);
         }
         if ($frontMatterXML !== null) {
             $description = $frontMatterXML->document->saveXML($frontMatterXML->document->firstChild);
@@ -339,17 +361,42 @@ public function populateExplainResult ($db, $table, $publicName, $indices) {
         }
     }
     
-    $tmpl = new vlibTemplate($explainTemplate);
+    $tmpl = new vlibTemplate($this->explainTemplateFilename);
     
-    $tmpl->setLoop('maps', $indices);
+    $tmpl->setLoop('maps', $this->indices);
     
-    $tmpl->setVar('hostid', htmlentities($_SERVER["HTTP_HOST"]));
+    $hostId = 'NoHost';
+    if (isset($_SERVER["HTTP_HOST"])) {
+        $hostId = $_SERVER["HTTP_HOST"];
+    }
+    $tmpl->setVar('hostid', htmlentities($hostId));
     $tmpl->setVar('database', $publicName);
     $tmpl->setVar('databaseTitle', $title);
     $tmpl->setVar('databaseAuthor', $authors);
     $tmpl->setVar('dbRestrictions', $restrictions);
     $tmpl->setVar('dbDescription', $description);
-    $tmpl->pparse();
+    return $tmpl->grab();
+}
+/**
+ * Fill in the ZeeRex explain template and return it to the client.
+ * 
+ * @uses $explainTemplate
+ * @param object $db
+ * @param string $table The table from which the teiHeader at id 1 is fetched.
+ * @param string $publicName The public name for this resource.
+ * @param array $indices An array with index configuratiuons. Should contain maps
+ *                       with the following keys:
+ *                       title string: An intelligable title for the index.
+ *                       name string: The name of the index unterstood by the script
+ *                       search bool
+ *                       scan bool
+ *                       sort bool
+ * @see http://zeerex.z3950.org/overview/index.html
+ */
+public function populateExplainResult ($db, $table, $publicName, $indices) {
+    $this->indices = $indices;
+    $this->db = $db;
+    echo $this->getExplainResult($table, $publicName);
 }
 
 /**
@@ -418,22 +465,12 @@ protected function getTEIDataAsXMLQueryObject($xmlText) {
     $xmlDocXPath = new \DOMXPath($xmlDoc);
     return $xmlDocXPath;
 }
-/**
- * Execute a search and return the result using the $responseTemplate
- * @uses $responseTemplate
- * @uses $this->params
- * @param object $db An object supporting query($sqlstr) which should return a
- *                   query object supporting fetch_row(). Eg. a mysqli object
- *                   or an sqlite3 object.
- * @param array|string $sql Either an arrary that can be used to get a query string using
- *                          sqlForPath;
- *                          or a query string to exequte using $db->query()
- * @param string $description A description used by the $responseTemplate.
- * @param comparatorFactory $comparatorFactory A class that can create a comporator for sorting the result.
- */
-public function populateSearchResult($db, $sql, $description, $comparatorFactory = NULL) {
-    global $responseTemplate;
-    
+
+protected function getSearchResult($sql, $description, $comparatorFactory = NULL) {
+    if ($this->responseTemplateFilename === '') {
+        global $responseTemplate;
+        $this->responseTemplateFilename = $responseTemplate; 
+    }
     
     $baseURL = $this->curPageURL();
     
@@ -446,14 +483,14 @@ public function populateSearchResult($db, $sql, $description, $comparatorFactory
         $options = $sql;
         $sql = $this->sqlForXPath("", "", $options);
         if ($wantMetadata || $wantTitle) {
-            $dbTeiHeaderXML = $this->getMetadataAsXML($db, $options['dbtable']);
+            $dbTeiHeaderXML = $this->getMetadataAsXML($this->db, $options['dbtable']);
         }
         if (isset($options["maximumRecords"])) {
             $options["startRecord"] = NULL;
             $options["maximumRecords"] = NULL;
             $options["justCount"] = true;
             $countSql = $this->sqlForXPath("", "", $options);
-            $result = $db->query($countSql);
+            $result = $this->db->query($countSql);
             if ($result !== false) {
                 $line = $result->fetch_row();
                 $extraCountSql = $line[0];
@@ -466,7 +503,7 @@ public function populateSearchResult($db, $sql, $description, $comparatorFactory
         }
     }
     
-    $result = $db->query($sql);
+    $result = $this->db->query($sql);
     if ($result !== FALSE) {
         if ($extraCountSql !== false) {
             $numberOfRecords = $extraCountSql;
@@ -499,7 +536,7 @@ public function populateSearchResult($db, $sql, $description, $comparatorFactory
         while (($line = $result->fetch_row()) !== NULL) {
             //$id = $line[0];
             if ($this->extendedSearchResultProcessing === true) {
-                $content = $this->processSearchResult($line, $db);
+                $content = $this->processSearchResult($line);
             } else {
                 $content = $line[1];
             }
@@ -542,10 +579,41 @@ public function populateSearchResult($db, $sql, $description, $comparatorFactory
             usort($hits, array($comparator, 'sortSearchResult'));
         }
         $tmpl->setloop('hits', $hits);
-        $tmpl->pparse();
+        return $tmpl->grab();
     } else {
-        \ACDH\FCSSRU\diagnostics(1, 'MySQL query error: Query was: ' . $sql);
+        $this->errorDiagnostics = new SRUdiagnostics(1, 'MySQL query error: Query was: ' . $sql);
+        return '';
     }
+   }
+/**
+ * Execute a search and return the result using the $responseTemplate
+ * @uses $responseTemplate
+ * @uses $this->params
+ * @param object $db An object supporting query($sqlstr) which should return a
+ *                   query object supporting fetch_row(). Eg. a mysqli object
+ *                   or an sqlite3 object.
+ * @param array|string $sql Either an arrary that can be used to get a query string using
+ *                          sqlForXPath;
+ *                          or a query string to exequte using $db->query()
+ * @param string $description A description used by the $responseTemplate.
+ * @param comparatorFactory $comparatorFactory A class that can create a comporator for sorting the result.
+ */
+public function populateSearchResult($db, $sql, $description, $comparatorFactory = NULL) {
+    $this->db = $db;
+    $ret = $this->getSearchResult($sql, $description, $comparatorFactory);
+    if ($ret !== '') {
+        echo $ret;
+    } else {
+        $this->returnError();
+    }
+}
+
+protected function returnError() {
+    $response = $this->diagnosticsToResponse($this->errorDiagnostics);
+    if ($this->shouldNotSendMetadata()) {
+        $response->getHeaders()->clearHeaders();
+    }
+    \ACDH\FCSSRU\HttpResponseSender::sendResponse($response);
 }
 
 /**
@@ -561,38 +629,23 @@ public function populateSearchResult($db, $sql, $description, $comparatorFactory
  * @param /mysqli $db The database access object (note: remove it, change to member variable).
  * @return string
  */
-protected function processSearchResult($line, $db) {
+protected function processSearchResult($line) {
     // Note: just a dummy, not called by default.
     return $line[1];    
 }
-
-/**
- * Execute a scan and return the result using the $scanTemplate
- * @uses $scanTemplate
- * @uses $this->params
- * @param object $db An object supporting query($sqlstr) which should return a
- *                   query object supporting fetch_row(). Eg. a mysqli object
- *                   or an sqlite3 object.
- * @param string $sqlstr A query string to exequte using $db->query()
- * @param string|array $entry An optional entry from which to start listing terms.
- *                       If this is an array it is assumed that it its buld like this:
- *                       array[0] => the beginning search string
- *                       array[1] => wildcard(s)
- *                       array[2] => the end of the search string
- * @param bool $exact If the start word needs to be exactly the specified or
- *                    if it should be just anywhere in the string.
- */
-public function populateScanResult($db, $sqlstr, $entry = NULL, $exact = true, $isNumber = false) {
-    global $scanTemplate;
-    
-    
+protected function getScanResult($sqlstr, $entry = NULL, $exact = true, $isNumber = false) {
+    if ($this->scanTemplateFilename === '') {
+        global $scanTemplate;
+        $this->scanTemplateFilename = $scanTemplate; 
+    }
+        
     $maximumTerms = $this->params->maximumTerms;
                 
-    $result = $db->query($sqlstr);
+    $result = $this->db->query($sqlstr);
     if ($result !== FALSE) {
         $numberOfRecords = $result->num_rows;
 
-        $tmpl = new vlibTemplate($scanTemplate);
+        $tmpl = new vlibTemplate($this->scanTemplateFilename);
 
         $terms = new \SplFixedArray($result->num_rows);
         $i = 0;
@@ -651,9 +704,35 @@ public function populateScanResult($db, $sqlstr, $entry = NULL, $exact = true, $
         $tmpl->setVar('responsePosition', $responsePosition);
         $tmpl->setVar('maximumTerms', $maximumTerms);
 
-        $tmpl->pparse();
+        return $tmpl->grab();
     } else {
-        \ACDH\FCSSRU\diagnostics(1, 'MySQL query error: Query was: ' . $sqlstr);
+        $this->errorDiagnostics = new SRUdiagnostics(1, 'MySQL query error: Query was: ' . $sqlstr);
+        return '';
+    }
+}
+/**
+ * Execute a scan and return the result using the $scanTemplate
+ * @uses $scanTemplate
+ * @uses $this->params
+ * @param object $db An object supporting query($sqlstr) which should return a
+ *                   query object supporting fetch_row(). Eg. a mysqli object
+ *                   or an sqlite3 object.
+ * @param string $sqlstr A query string to exequte using $db->query()
+ * @param string|array $entry An optional entry from which to start listing terms.
+ *                       If this is an array it is assumed that it its buld like this:
+ *                       array[0] => the beginning search string
+ *                       array[1] => wildcard(s)
+ *                       array[2] => the end of the search string
+ * @param bool $exact If the start word needs to be exactly the specified or
+ *                    if it should be just anywhere in the string.
+ */
+public function populateScanResult($db, $sqlstr, $entry = NULL, $exact = true, $isNumber = false) {
+    $this->db = $db;
+    $ret = $this->getScanResult($sqlstr, $entry, $exact, $isNumber);
+    if ($ret !== '') {
+        echo $ret;
+    } else {
+        $this->returnError();
     }
 }
 
@@ -662,36 +741,42 @@ public function populateScanResult($db, $sqlstr, $entry = NULL, $exact = true, $
  * operation member of $this->params.
  * @return Response
  */
-public function run() {    
-    if ($this->params->operation == "explain" || $this->params->operation == "") {
+public function run() {
+    $this->db = $this->db_connect();
+    if ($this->db ->connect_errno) {
+        $ret = $this->errorDiagnostics;
+    } else if ($this->params->operation === "explain" || $this->params->operation == "") {
         $ret = $this->explain();
-    } else if ($this->params->operation == "scan") {
+    } else if ($this->params->operation === "scan") {
         $ret = $this->scan();
-    } else if ($this->params->operation == "searchRetrieve") {
+    } else if ($this->params->operation === "searchRetrieve") {
         $ret = $this->search();
     }
-    if (get_class($ret) === 'SRUDiagnostics') {
-        return $this->diagnosticsToResponse($ret);
-    } else {
-        return $ret;
+    if (get_class($ret) === 'ACDH\\FCSSRU\\SRUDiagnostics') {
+        $ret = $this->diagnosticsToResponse($ret);
     }
+    
+    if ($this->shouldNotSendMetadata()) {
+        $ret->getHeaders()->clearHeaders();
+    }
+    return $ret;
 }
 /**
  * @return Response|SRUDiagnostics; 
  */
-protected function explain() {
+public function explain() {
     return new SRUDiagnostics(1, 'Not implememnted');
 }
 /**
  * @return Response|SRUDiagnostics; 
  */
-protected function scan() {
+public function scan() {
     return new SRUDiagnostics(1, 'Not implememnted');
 }
 /**
  * @return Response|SRUDiagnostics; 
  */
-protected function search() {
+public function search() {
     return new SRUDiagnostics(1, 'Not implememnted');
 }
 
@@ -700,6 +785,15 @@ protected function diagnosticsToResponse(SRUDiagnostics $diag) {
     $ret->getHeaders()->addHeaders(array('content-type' => 'text/xml'));
     $ret->setContent($diag->getAsXML());
     return $ret;
+}
+
+/**
+ * Whether a HTTP header describing the content should be sent according to the
+ * input.
+ * @return boolean
+ */
+public function shouldNotSendMetadata() {
+    return $this->params->recordPacking === 'raw';
 }
 
 /**

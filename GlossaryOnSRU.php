@@ -18,8 +18,11 @@ namespace ACDH\FCSSRU\mysqlonsru;
 
 use ACDH\FCSSRU\mysqlonsru\SRUFromMysqlBase,
     ACDH\FCSSRU\SRUDiagnostics,
-    ACDH\FCSSRU\SRUWithFCSParameters;
+    ACDH\FCSSRU\SRUWithFCSParameters,
+    ACDH\FCSSRU\Http\Response,
+    ACDH\FCSSRU\HttpResponseSender;
 
+require_once __DIR__ . '/../../vendor/autoload.php';
 /**
  * Load configuration and common functions
  */
@@ -28,12 +31,215 @@ require_once __DIR__ . "/common.php";
 
 class GlossaryOnSRU extends SRUFromMysqlBase {
 
-    public function __construct($context, SRUWithFCSParameters $params = null) {
+private $restrictedGlossaries = array(
+    "apc_eng_002",
+    "aeb_eng_001__v001",
+);
+    public function __construct(SRUWithFCSParameters $params = null) {
         parent::__construct($params);
         $this->extendedSearchResultProcessing = true;
     }
+/**
+ * Generates a response according to ZeeRex
+ * 
+ * This is a machine readable description of this script's capabilities.
+ * 
+ * @see http://zeerex.z3950.org/overview/index.html
+ * 
+ */
+ public function explain()
+ {
     
-protected function processSearchResult($line, $db) {
+    if ($this->params->context[0] === '') {
+        return new SRUDiagnostics(1, 'This script needs to know which resource to use!');; 
+    }
+    
+    $glossTable = $this->params->context[0];
+    
+    $resIdParts = explode("_", $glossTable);
+    $langId = $this->langId2LangName($resIdParts[0]);
+    $transLangId = $this->langId2LangName($resIdParts[1]);
+    $this->indices = array();
+ 
+    array_push($this->indices, array(
+        'title' => "VICAV $langId - $transLangId any entry",
+        'name' => 'entry',
+        'search' => 'true',
+        'scan' => 'true',
+        'sort' => 'false',
+    ));
+    
+    array_push($this->indices, array(
+        'title' => "VICAV $langId - $transLangId translated sense",
+        'name' => 'sense',
+        'search' => 'true',
+        'scan' => 'true',
+        'sort' => 'false',
+    ));
+        
+    array_push($this->indices, array(
+        'title' => 'Resource Fragement PID',
+        'name' => 'rfpid',
+        'search' => 'true',
+        'scan' => 'true',
+        'sort' => 'false',
+    ));
+    
+    $ret = new Response();
+    $ret->getHeaders()->addHeaders(array('content-type' => 'text/xml'));
+    $ret->setContent($this->getExplainResult($glossTable, $glossTable));
+    return $ret;
+ }
+  
+private function langId2LangName($langId) {
+    $langIds = array(
+        "arz" => "Egyptian",
+        "apc" => "Syrian",
+        "aeb" => "Tunisian",
+        "eng" => "English/German",
+    );
+    if (isset($langIds[$langId])) {
+        $langId = $langIds[$langId];
+    }
+    return $langId;
+}
+
+/**
+ * Lists the entries from the lemma column in the database
+ * 
+ * Lists either the profiles (city names) or the sample texts ([id])
+ * 
+ * @see http://www.loc.gov/standards/sru/specs/scan.html
+ */
+public function scan() {
+    $glossTable = $this->params->context[0];    
+    $sqlstr = '';
+    $options = array("filter" => "-",
+                     "distinct-values" => true,
+                     "query" => "", // the database can't sort or filter due to encoding
+                   );
+    if (in_array($glossTable, $this->restrictedGlossaries)) {
+        $options["xpath-filters"] = array (
+            "-change-f-status-" => "released",
+        );
+    }
+    
+    if ($this->params->scanClause === 'rfpid') {
+       $sqlstr = "SELECT id, entry, sid FROM $glossTable ORDER BY CAST(id AS SIGNED)";
+       populateScanResult($db, $sqlstr, NULL, true, true);
+       return;
+    }
+    if ($this->params->scanClause === '' ||
+        strpos($this->params->scanClause, 'entry') === 0 ||
+        strpos($this->params->scanClause, 'serverChoice') === 0 ||
+        strpos($this->params->scanClause, 'cql.serverChoice') === 0) {
+       $sqlstr = $this->sqlForXPath($glossTable, "", $options);     
+    } else if (strpos($this->params->scanClause, 'sense') === 0) {
+       $sqlstr = $this->sqlForXPath($glossTable, "-quote-", $options); 
+    } else {
+        return new SRUdiagnostics(51, 'Result set: ' . $this->params->scanClause);
+    }
+    
+    $lemma_query = $this->get_search_term_for_wildcard_search("entry", $this->params->scanClause);
+    if (!isset($lemma_query)) {
+        $lemma_query = $this->get_search_term_for_wildcard_search("serverChoice", $this->params->scanClause, "cql");
+    }
+    $lemma_query_exact = $this->get_search_term_for_exact_search("entry", $this->params->scanClause);
+    if (!isset($lemma_query_exact)) {
+        $lemma_query_exact = $this->get_search_term_for_exact_search("serverChoice", $this->params->scanClause, "cql");
+    }
+    
+    $exact = false;
+    $scanClause = ""; // a scan clause that is no index cannot be used.
+    if (isset($lemma_query_exact)) { // lemma query matches lemma query exact also!
+        $wildCardSearch = get_wild_card_search($lemma_query_exact);
+        $scanClause = isset($wildCardSearch) ? $wildCardSearch : $lemma_query_exact;
+        $exact = true;
+    } else if (isset($lemma_query)) {
+        $wildCardSearch = get_wild_card_search($lemma_query);
+        $scanClause = isset($wildCardSearch) ? $wildCardSearch : $lemma_query;
+        $exact = false;
+    }
+    
+    $scanResult = $this->getScanResult($sqlstr, $scanClause, $exact);
+    if ($scanResult !== '') { 
+        $ret = new Response();    
+        $ret->getHeaders()->addHeaders(array('content-type' => 'text/xml'));
+        $ret->setContent($scanResult);
+    } else {
+        $ret = $this->errorDiagnostics;
+    }
+    return $ret;
+}
+
+/**
+ * 
+ */
+ public function search()
+ {  
+    $glossTable = $this->params->context[0];     
+    // HACK, sql parser? cql.php = GPL -> this GPL too
+    $this->params->query = str_replace("\"", "", $this->params->query);
+    $options = array("filter" => "-",
+                     "distinct-values" => false,
+        );
+    $options["startRecord"] = $this->params->startRecord;
+    $options["maximumRecords"] = $this->params->maximumRecords;
+    $lemma_query = $this->get_search_term_for_wildcard_search("entry", $this->params->query);
+    if (!isset($lemma_query)) {
+        $lemma_query = $this->get_search_term_for_wildcard_search("serverChoice", $this->params->query, "cql");
+    }
+    $lemma_query_exact = $this->get_search_term_for_exact_search("entry", $this->params->query);
+    if (!isset($lemma_query_exact)) {
+        $lemma_query_exact = $this->get_search_term_for_exact_search("serverChoice", $this->params->query, "cql");
+    }
+    $sense_query_exact = $this->get_search_term_for_exact_search("sense", $this->params->query);
+    $sense_query = $this->get_search_term_for_wildcard_search("sense", $this->params->query);
+ 
+    $rfpid_query = $this->get_search_term_for_wildcard_search("rfpid", $this->params->query);
+    $rfpid_query_exact = $this->get_search_term_for_exact_search("rfpid", $this->params->query);
+    if (!isset($rfpid_query_exact)) {
+        $rfpid_query_exact = $rfpid_query;
+    }
+    if (isset($rfpid_query_exact)) {
+        $query = $this->db->escape_string($rfpid_query_exact);
+        $this->populateSearchResult($this->db, "SELECT id, entry, sid, 1 FROM $glossTable WHERE id=$query", "Resource Fragment for pid");
+        return;
+    } else if (isset($sense_query_exact)) {
+        $options["query"] = $this->db->escape_string($sense_query_exact);
+        $options["xpath"] = "-quote-";
+        $options["exact"] = true;
+    } else if (isset($sense_query)) {
+        $options["query"] = $this->db->escape_string($sense_query);
+        $options["xpath"] = "-quote-";
+    } else if (isset($lemma_query_exact)) {
+        $options["query"] = $this->db->escape_string($lemma_query_exact);
+        $options["exact"] = true;
+    } else if (isset($lemma_query)) {
+        $options["query"] = $this->db->escape_string($lemma_query);
+    } else {
+        $options["query"] = $this->db->escape_string($this->params->query);
+    }
+    $options["dbtable"] = $glossTable;
+    
+    if (in_array($glossTable, $this->restrictedGlossaries)) {
+        $options["xpath-filters"] = array (
+            "-change-f-status-" => "released",
+        );
+    }
+
+    $searchResult = $this->getSearchResult($options, "Glossary for " . $options["query"],
+            new glossaryComparatorFactory($options["query"]));
+    if ($searchResult !== '') { 
+        $ret = new Response();    
+        $ret->getHeaders()->addHeaders(array('content-type' => 'text/xml'));
+        $ret->setContent($searchResult);
+    } else {
+        $ret = $this->errorDiagnostics;
+    }
+    return $ret; }
+    
+protected function processSearchResult($line) {
     global $glossTable;
     
     $xmlcode = str_replace("\n\n", "\n", $this->decodecharrefs($line[1]));
@@ -56,7 +262,7 @@ protected function processSearchResult($line, $db) {
             $hstr .= ")";
             //print $hstr;
 
-            $subresult = $db->query($hstr);
+            $subresult = $this->db->query($hstr);
             while ($subline = $subresult->fetch_row()) {
                 $elements = $xpath->query("//ptr[@target='" . $subline[0] . "']");
                 if ((!is_null($elements)) && ($elements->length != 0)) {
@@ -83,23 +289,6 @@ protected function processSearchResult($line, $db) {
     return $content;
 }
 
-}
-$restrictedGlossaries = array(
-    "apc_eng_002",
-    "aeb_eng_001__v001",
-);
-
-function langId2LangName($langId) {
-    $langIds = array(
-        "arz" => "Egyptian",
-        "apc" => "Syrian",
-        "aeb" => "Tunisian",
-        "eng" => "English/German",
-    );
-    if (isset($langIds[$langId])) {
-        $langId = $langIds[$langId];
-    }
-    return $langId;
 }
 
 class glossaryComparatorFactory extends comparatorFactory {
@@ -159,213 +348,8 @@ class glossarySearchResultComparator extends searchResultComparator {
     }
 
 }
-
-/**
- * Generates a response according to ZeeRex
- * 
- * This is a machine readable description of this script's capabilities.
- * 
- * @see http://zeerex.z3950.org/overview/index.html
- * 
- */
- function explain()
- {
-    global $glossTable;
-    
-    if (!isset($glossTable)) {
-        \ACDH\FCSSRU\diagnostics(1, 'This script needs to know which resource to use!');
-        return; 
-    }
-    
-    $base = new SRUFromMysqlBase();
-        
-    $db = $base->db_connect();
-    if ($db->connect_errno) {
-        return;
-    }
-    
-    $resIdParts = explode("_", $glossTable);
-    $langId = langId2LangName($resIdParts[0]);
-    $transLangId = langId2LangName($resIdParts[1]);
-    $maps = array();
- 
-    array_push($maps, array(
-        'title' => "VICAV $langId - $transLangId any entry",
-        'name' => 'entry',
-        'search' => 'true',
-        'scan' => 'true',
-        'sort' => 'false',
-    ));
-    
-        array_push($maps, array(
-        'title' => "VICAV $langId - $transLangId translated sense",
-        'name' => 'sense',
-        'search' => 'true',
-        'scan' => 'true',
-        'sort' => 'false',
-    ));
-        
-    array_push($maps, array(
-        'title' => 'Resource Fragement PID',
-        'name' => 'rfpid',
-        'search' => 'true',
-        'scan' => 'true',
-        'sort' => 'false',
-    ));
-    
-    $base->populateExplainResult($db, $glossTable, $glossTable, $maps);
- }
- 
-/**
- * 
- * @uses $glossTable
- * @uses $sru_fcs_params
- * @uses $restrictedGlossaries
- */
- function search()
- {
-    global $glossTable;
-    global $sru_fcs_params;
-    global $restrictedGlossaries;
-    
-    $base = new GlossaryOnSRU();
-        
-    $db = $base->db_connect();
-    if ($db->connect_errno) {
-        return;
-    }
-    
-    // HACK, sql parser? cql.php = GPL -> this GPL too
-    $sru_fcs_params->query = str_replace("\"", "", $sru_fcs_params->query);
-    $options = array("filter" => "-",
-                     "distinct-values" => false,
-        );
-    $options["startRecord"] = $sru_fcs_params->startRecord;
-    $options["maximumRecords"] = $sru_fcs_params->maximumRecords;
-    $lemma_query = $base->get_search_term_for_wildcard_search("entry", $sru_fcs_params->query);
-    if (!isset($lemma_query)) {
-        $lemma_query = $base->get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
-    }
-    $lemma_query_exact = $base->get_search_term_for_exact_search("entry", $sru_fcs_params->query);
-    if (!isset($lemma_query_exact)) {
-        $lemma_query_exact = $base->get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
-    }
-    $sense_query_exact = $base->get_search_term_for_exact_search("sense", $sru_fcs_params->query);
-    $sense_query = $base->get_search_term_for_wildcard_search("sense", $sru_fcs_params->query);
- 
-    $rfpid_query = $base->get_search_term_for_wildcard_search("rfpid", $sru_fcs_params->query);
-    $rfpid_query_exact = $base->get_search_term_for_exact_search("rfpid", $sru_fcs_params->query);
-    if (!isset($rfpid_query_exact)) {
-        $rfpid_query_exact = $rfpid_query;
-    }
-    if (isset($rfpid_query_exact)) {
-        $query = $db->escape_string($rfpid_query_exact);
-        $base->populateSearchResult($db, "SELECT id, entry, sid, 1 FROM $glossTable WHERE id=$query", "Resource Fragment for pid");
-        return;
-    } else if (isset($sense_query_exact)) {
-        $options["query"] = $db->escape_string($sense_query_exact);
-        $options["xpath"] = "-quote-";
-        $options["exact"] = true;
-    } else if (isset($sense_query)) {
-        $options["query"] = $db->escape_string($sense_query);
-        $options["xpath"] = "-quote-";
-    } else if (isset($lemma_query_exact)) {
-        $options["query"] = $db->escape_string($lemma_query_exact);
-        $options["exact"] = true;
-    } else if (isset($lemma_query)) {
-        $options["query"] = $db->escape_string($lemma_query);
-    } else {
-        $options["query"] = $db->escape_string($sru_fcs_params->query);
-    }
-    $options["dbtable"] = $glossTable;
-    
-    if (in_array($glossTable, $restrictedGlossaries)) {
-        $options["xpath-filters"] = array (
-            "-change-f-status-" => "released",
-        );
-    }
-
-    $base->populateSearchResult($db, $options, "Glossary for " . $options["query"],
-            new glossaryComparatorFactory($options["query"]));
- }
-
-  /**
- * Lists the entries from the lemma column in the database
- * 
- * Lists either the profiles (city names) or the sample texts ([id])
- * 
- * @see http://www.loc.gov/standards/sru/specs/scan.html
- * 
- * @uses $sru_fcs_params
- * @uses $glossTable
- * @uses $restrictedGlossaries
- */
-function scan() {
-    global $glossTable;
-    global $sru_fcs_params;
-    global $restrictedGlossaries;
-
-    
-    $base = new SRUFromMysqlBase();
-        
-    $db = $base->db_connect();
-    if ($db->connect_errno) {
-        return;
-    }
-    
-    $sqlstr = '';
-    $options = array("filter" => "-",
-                     "distinct-values" => true,
-                     "query" => "", // the database can't sort or filter due to encoding
-                   );
-    if (in_array($glossTable, $restrictedGlossaries)) {
-        $options["xpath-filters"] = array (
-            "-change-f-status-" => "released",
-        );
-    }
-    
-    if ($sru_fcs_params->scanClause === 'rfpid') {
-       $sqlstr = "SELECT id, entry, sid FROM $glossTable ORDER BY CAST(id AS SIGNED)";
-       populateScanResult($db, $sqlstr, NULL, true, true);
-       return;
-    }
-    if ($sru_fcs_params->scanClause === '' ||
-        strpos($sru_fcs_params->scanClause, 'entry') === 0 ||
-        strpos($sru_fcs_params->scanClause, 'serverChoice') === 0 ||
-        strpos($sru_fcs_params->scanClause, 'cql.serverChoice') === 0) {
-       $sqlstr = $base->sqlForXPath($glossTable, "", $options);     
-    } else if (strpos($sru_fcs_params->scanClause, 'sense') === 0) {
-       $sqlstr = $base->sqlForXPath($glossTable, "-quote-", $options); 
-    } else {
-        \ACDH\FCSSRU\diagnostics(51, 'Result set: ' . $sru_fcs_params->scanClause);
-        return;
-    }
-    
-    $lemma_query = $base->get_search_term_for_wildcard_search("entry", $sru_fcs_params->scanClause);
-    if (!isset($lemma_query)) {
-        $lemma_query = $base->get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->scanClause, "cql");
-    }
-    $lemma_query_exact = $base->get_search_term_for_exact_search("entry", $sru_fcs_params->scanClause);
-    if (!isset($lemma_query_exact)) {
-        $lemma_query_exact = $base->get_search_term_for_exact_search("serverChoice", $sru_fcs_params->scanClause, "cql");
-    }
-    
-    $exact = false;
-    $scanClause = ""; // a scan clause that is no index cannot be used.
-    if (isset($lemma_query_exact)) { // lemma query matches lemma query exact also!
-        $wildCardSearch = get_wild_card_search($lemma_query_exact);
-        $scanClause = isset($wildCardSearch) ? $wildCardSearch : $lemma_query_exact;
-        $exact = true;
-    } else if (isset($lemma_query)) {
-        $wildCardSearch = get_wild_card_search($lemma_query);
-        $scanClause = isset($wildCardSearch) ? $wildCardSearch : $lemma_query;
-        $exact = false;
-    }
-    
-    $base->populateScanResult($db, $sqlstr, $scanClause, $exact);
-}
 if (!isset($runner)) {
-    \ACDH\FCSSRU\getParamsAndSetUpHeader();
-    $glossTable = $sru_fcs_params->xcontext;
-    SRUFromMysqlBase::processRequest();
+    $worker = new GlossaryOnSRU(new SRUWithFCSParameters('lax'));
+    $response = $worker->run();
+    HttpResponseSender::sendResponse($response);
 }
