@@ -39,6 +39,13 @@ public function getLemmaWhereClause($query) {
     return "WHERE lemma LIKE '%" . $this->encodecharrefs($query) . "%'";
 }
 
+public function getLemmaWhereClauseExact($query) {
+    return "WHERE lemma = '" . $this->encodecharrefs($query) . "'";
+}
+
+public function sampleTextQuery($query) {
+    return $this->encodecharrefs(strtolower($query));
+}
 }
 /**
  * Generates a response according to ZeeRex
@@ -241,7 +248,7 @@ public function getLemmaWhereClause($query) {
        $description = "Arabic dialect profile for the region of $query"; 
        $sqlstr = "SELECT DISTINCT id, entry FROM $profileTable ";
        if (isset($profile_query_exact) || isset($metaText_query_exact) || isset($text_query_exact)) {
-          $sqlstr.= "WHERE lemma = '" . encodecharrefs($query) . "'"; 
+          $sqlstr.= $base->getLemmaWhereClauseExact($query); 
        } else {
            if ((stripos($profileTable, "profile") !== false) ||
                (stripos($profileTable, "meta") !== false) ||
@@ -250,7 +257,7 @@ public function getLemmaWhereClause($query) {
                 $sqlstr.= $base->getLemmaWhereClause($query);
            } else if (stripos($profileTable, "sampletext") !== false) {
                 $regionGuess = explode('_', $query);                
-                $base->populateSampleTextResult("%" . $db->escape_string(encodecharrefs(strtolower($query))) . "%", $db, $regionGuess[0]);
+                $base->populateSampleTextResult("%" . $db->escape_string($base->sampleTextQuery($query)) . "%", $db, $regionGuess[0]);
                 return;
             }
         }

@@ -89,11 +89,11 @@ public function db_connect() {
     global $password;
     global $database;
 
-    $db = new \mysqli($server, $user, $password, $database);
-    if ($db->connect_errno) {
-        $this->errorDiagnostics = new SRUDiagnostics(1, 'MySQL Connection Error: Failed to connect to database: (' . $db->connect_errno . ") " . $db->connect_error);
+    $this->db = new \mysqli($server, $user, $password, $database);
+    if ($this->db->connect_errno) {
+        $this->errorDiagnostics = new SRUDiagnostics(1, 'MySQL Connection Error: Failed to connect to database: (' . $this->db->connect_errno . ") " . $this->db->connect_error);
     }
-    return $db;
+    return $this->db;
 }
 
 /**
@@ -330,7 +330,7 @@ protected function getExplainResult($table, $publicName) {
          global $explainTemplate;
          $this->explainTemplateFilename = $explainTemplate;
     }
-    $teiHeaderXML = $this->getMetadataAsXML($this->db, $table);
+    $teiHeaderXML = $this->getMetadataAsXML($table);
     $title = "";
     $authors = "";
     $restrictions = "";
@@ -352,7 +352,7 @@ protected function getExplainResult($table, $publicName) {
 //                $xmlDocXPath->evaluate('string(//editionStmt/edition)') . '.';
         $frontMatterXML = null;
         if (strpos($this->params->xdataview, 'metadata') === false) {
-            $frontMatterXML = $this->getFrontMatterAsXML($this->db, $table);
+            $frontMatterXML = $this->getFrontMatterAsXML($table);
         }
         if ($frontMatterXML !== null) {
             $description = $frontMatterXML->document->saveXML($frontMatterXML->document->firstChild);
@@ -407,9 +407,9 @@ public function populateExplainResult ($db, $table, $publicName, $indices) {
  * @param type $table The table in the db that should be queried
  * @return \DOMXPath|null The metadata (teiHeader) as 
  */
-protected function getMetadataAsXML($db, $table) {
+protected function getMetadataAsXML($table) {
     // It is assumed that there is a teiHeader for the resource with this well knonwn id 1
-    return $this->getWellKnownTEIPartAsXML($db, $table, 1);
+    return $this->getWellKnownTEIPartAsXML($table, 1);
 }
 
 /**
@@ -419,9 +419,9 @@ protected function getMetadataAsXML($db, $table) {
  * @param type $table The table in the db that should be queried
  * @return \DOMXPath|null The front matter
  */
-protected function getFrontMatterAsXML($db, $table) {
+protected function getFrontMatterAsXML($table) {
     // It is assumed that there is a front part for the resource with this well knonwn id 5
-    return $this->getWellKnownTEIPartAsXML($db, $table, 5);
+    return $this->getWellKnownTEIPartAsXML($table, 5);
 }
 
 /**
@@ -432,8 +432,8 @@ protected function getFrontMatterAsXML($db, $table) {
  * @param type $id The well known id of the TEI part to fetch 
  * @return \DOMXPath|null Some TEI-XML, null if the id is not in teh db
  */
-protected function getWellKnownTEIPartAsXML ($db, $table, $id) {
-    $result = $db->query("SELECT entry FROM $table WHERE id = $id");
+protected function getWellKnownTEIPartAsXML ($table, $id) {
+    $result = $this->db->query("SELECT entry FROM $table WHERE id = $id");
     if ($result !== false) {
         $line = $result->fetch_array();
         if (is_array($line) && trim($line[0]) !== "") {
@@ -483,7 +483,7 @@ protected function getSearchResult($sql, $description, $comparatorFactory = NULL
         $options = $sql;
         $sql = $this->sqlForXPath("", "", $options);
         if ($wantMetadata || $wantTitle) {
-            $dbTeiHeaderXML = $this->getMetadataAsXML($this->db, $options['dbtable']);
+            $dbTeiHeaderXML = $this->getMetadataAsXML($options['dbtable']);
         }
         if (isset($options["maximumRecords"])) {
             $options["startRecord"] = NULL;
@@ -499,7 +499,7 @@ protected function getSearchResult($sql, $description, $comparatorFactory = NULL
     } else if ($wantMetadata || $wantTitle) {
         $dbtable = preg_filter('/.* FROM (\\w+) .*/', '$1', $sql);
         if ($dbtable !== false) {
-            $dbTeiHeaderXML = $this->getMetadataAsXML($db, $dbtable);
+            $dbTeiHeaderXML = $this->getMetadataAsXML($dbtable);
         }
     }
     
