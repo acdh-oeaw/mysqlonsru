@@ -31,160 +31,174 @@ require_once __DIR__ . "/common.php";
 
 class GlossaryOnSRU extends SRUFromMysqlBase {
 
-private $restrictedGlossaries = array(
-    "apc_eng_002",
-    "aeb_eng_001__v001",
-);
+    private $restrictedGlossaries = array(
+        "apc_eng_002",
+        "aeb_eng_001__v001",
+    );
+
+    protected $options = array(
+        "filter" => "-",        
+        "distinct-values" => true,
+        "query" => "", // the database can't sort or filter due to encoding
+    );
+            
     public function __construct(SRUWithFCSParameters $params = null) {
         parent::__construct($params);
         $this->extendedSearchResultProcessing = true;
     }
-/**
- * Generates a response according to ZeeRex
- * 
- * This is a machine readable description of this script's capabilities.
- * 
- * @see http://zeerex.z3950.org/overview/index.html
- * 
- */
- public function explain()
- {
-    
-    if ($this->params->context[0] === '') {
-        return new SRUDiagnostics(1, 'This script needs to know which resource to use!');; 
-    }
-    
-    $glossTable = $this->params->context[0];
-    
-    $resIdParts = explode("_", $glossTable);
-    $langId = $this->langId2LangName($resIdParts[0]);
-    $transLangId = $this->langId2LangName($resIdParts[1]);
-    $this->indices = array();
- 
-    array_push($this->indices, array(
-        'title' => "VICAV $langId - $transLangId any entry",
-        'name' => 'entry',
-        'search' => 'true',
-        'scan' => 'true',
-        'sort' => 'false',
-    ));
-    
-    array_push($this->indices, array(
-        'title' => "VICAV $langId - $transLangId translated sense",
-        'name' => 'sense',
-        'search' => 'true',
-        'scan' => 'true',
-        'sort' => 'false',
-    ));
-        
-    array_push($this->indices, array(
-        'title' => 'Resource Fragement PID',
-        'name' => 'rfpid',
-        'search' => 'true',
-        'scan' => 'true',
-        'sort' => 'false',
-    ));
-    
-    $ret = new Response();
-    $ret->getHeaders()->addHeaders(array('content-type' => 'text/xml'));
-    $ret->setContent($this->getExplainResult($glossTable, $glossTable));
-    return $ret;
- }
-  
-private function langId2LangName($langId) {
-    $langIds = array(
-        "arz" => "Egyptian",
-        "apc" => "Syrian",
-        "aeb" => "Tunisian",
-        "eng" => "English/German",
-    );
-    if (isset($langIds[$langId])) {
-        $langId = $langIds[$langId];
-    }
-    return $langId;
-}
 
-/**
- * Lists the entries from the lemma column in the database
- * 
- * Lists either the profiles (city names) or the sample texts ([id])
- * 
- * @see http://www.loc.gov/standards/sru/specs/scan.html
- */
-public function scan() {
-    $glossTable = $this->params->context[0];    
-    $sqlstr = '';
-    $options = array("filter" => "-",
-                     "distinct-values" => true,
-                     "query" => "", // the database can't sort or filter due to encoding
-                   );
-    if (in_array($glossTable, $this->restrictedGlossaries)) {
-        $options["xpath-filters"] = array (
-            "-change-f-status-" => "released",
-        );
-    }
-    
-    if ($this->params->scanClause === 'rfpid') {
-       $sqlstr = "SELECT id, entry, sid FROM $glossTable ORDER BY CAST(id AS SIGNED)";
-       populateScanResult($db, $sqlstr, NULL, true, true);
-       return;
-    }
-    if ($this->params->scanClause === '' ||
-        strpos($this->params->scanClause, 'entry') === 0 ||
-        strpos($this->params->scanClause, 'serverChoice') === 0 ||
-        strpos($this->params->scanClause, 'cql.serverChoice') === 0) {
-       $sqlstr = $this->sqlForXPath($glossTable, "", $options);     
-    } else if (strpos($this->params->scanClause, 'sense') === 0) {
-       $sqlstr = $this->sqlForXPath($glossTable, "-quote-", $options); 
-    } else {
-        return new SRUdiagnostics(51, 'Result set: ' . $this->params->scanClause);
-    }
-    
-    $lemma_query = $this->get_search_term_for_wildcard_search("entry", $this->params->scanClause);
-    if (!isset($lemma_query)) {
-        $lemma_query = $this->get_search_term_for_wildcard_search("serverChoice", $this->params->scanClause, "cql");
-    }
-    $lemma_query_exact = $this->get_search_term_for_exact_search("entry", $this->params->scanClause);
-    if (!isset($lemma_query_exact)) {
-        $lemma_query_exact = $this->get_search_term_for_exact_search("serverChoice", $this->params->scanClause, "cql");
-    }
-    
-    $exact = false;
-    $scanClause = ""; // a scan clause that is no index cannot be used.
-    if (isset($lemma_query_exact)) { // lemma query matches lemma query exact also!
-        $wildCardSearch = get_wild_card_search($lemma_query_exact);
-        $scanClause = isset($wildCardSearch) ? $wildCardSearch : $lemma_query_exact;
-        $exact = true;
-    } else if (isset($lemma_query)) {
-        $wildCardSearch = get_wild_card_search($lemma_query);
-        $scanClause = isset($wildCardSearch) ? $wildCardSearch : $lemma_query;
-        $exact = false;
-    }
-    
-    $scanResult = $this->getScanResult($sqlstr, $scanClause, $exact);
-    if ($scanResult !== '') { 
-        $ret = new Response();    
+    /**
+     * Generates a response according to ZeeRex
+     * 
+     * This is a machine readable description of this script's capabilities.
+     * 
+     * @see http://zeerex.z3950.org/overview/index.html
+     * 
+     */
+    public function explain() {
+
+        if ($this->params->context[0] === '') {
+            return new SRUDiagnostics(1, 'This script needs to know which resource to use!');
+        }
+
+        $glossTable = $this->params->context[0];
+
+        $resIdParts = explode("_", $glossTable);
+        $langId = $this->langId2LangName($resIdParts[0]);
+        $transLangId = $this->langId2LangName($resIdParts[1]);
+        $this->indices = array();
+
+        array_push($this->indices, array(
+            'title' => "VICAV $langId - $transLangId any entry",
+            'name' => 'entry',
+            'search' => 'true',
+            'scan' => 'true',
+            'sort' => 'false',
+        ));
+
+        array_push($this->indices, array(
+            'title' => "VICAV $langId - $transLangId translated sense",
+            'name' => 'sense',
+            'search' => 'true',
+            'scan' => 'true',
+            'sort' => 'false',
+        ));
+
+        array_push($this->indices, array(
+            'title' => 'Resource Fragement PID',
+            'name' => 'rfpid',
+            'search' => 'true',
+            'scan' => 'true',
+            'sort' => 'false',
+        ));
+
+        $ret = new Response();
         $ret->getHeaders()->addHeaders(array('content-type' => 'text/xml'));
-        $ret->setContent($scanResult);
-    } else {
-        $ret = $this->errorDiagnostics;
+        $ret->setContent($this->getExplainResult($glossTable, $glossTable));
+        return $ret;
     }
-    return $ret;
-}
 
-/**
- * 
- */
+    private function langId2LangName($langId) {
+        $langIds = array(
+            "arz" => "Egyptian",
+            "apc" => "Syrian",
+            "aeb" => "Tunisian",
+            "eng" => "English/German",
+        );
+        if (isset($langIds[$langId])) {
+            $langId = $langIds[$langId];
+        }
+        return $langId;
+    }
+
+    /**
+     * Lists the entries from the lemma column in the database
+     * 
+     * Lists either the profiles (city names) or the sample texts ([id])
+     * 
+     * @see http://www.loc.gov/standards/sru/specs/scan.html
+     */
+    public function scan() {
+        $glossTable = $this->params->context[0];
+        $sqlstr = '';
+
+        $this->addReleasedFilter();
+        
+        if ($this->params->scanClause === 'rfpid') {
+            $sqlstr = "SELECT id, entry, sid FROM $glossTable ORDER BY CAST(id AS SIGNED)";
+            $scanClause = null;
+            $exact = true;
+            $isNumber = true;
+        } else {
+            if ($this->params->scanClause === '' ||
+                    strpos($this->params->scanClause, 'entry') === 0 ||
+                    strpos($this->params->scanClause, 'serverChoice') === 0 ||
+                    strpos($this->params->scanClause, 'cql.serverChoice') === 0) {
+                $sqlstr = $this->sqlForXPath($glossTable, "", $this->options);
+            } else if (strpos($this->params->scanClause, 'sense') === 0) {
+                $sqlstr = $this->sqlForXPath($glossTable, "-quote-", $this->options);
+            } else {
+                return new SRUdiagnostics(51, 'Result set: ' . $this->params->scanClause);
+            }
+
+            $lemma_query = $this->get_search_term_for_wildcard_search("entry", $this->params->scanClause);
+            if (!isset($lemma_query)) {
+                $lemma_query = $this->get_search_term_for_wildcard_search("serverChoice", $this->params->scanClause, "cql");
+            }
+            $lemma_query_exact = $this->get_search_term_for_exact_search("entry", $this->params->scanClause);
+            if (!isset($lemma_query_exact)) {
+                $lemma_query_exact = $this->get_search_term_for_exact_search("serverChoice", $this->params->scanClause, "cql");
+            }
+
+            $isNumber = false;
+            $exact = false;
+            $scanClause = ""; // a scan clause that is no index cannot be used.
+            if (isset($lemma_query_exact)) { // lemma query matches lemma query exact also!
+                $wildCardSearch = get_wild_card_search($lemma_query_exact);
+                $scanClause = isset($wildCardSearch) ? $wildCardSearch : $lemma_query_exact;
+                $exact = true;
+            } else if (isset($lemma_query)) {
+                $wildCardSearch = get_wild_card_search($lemma_query);
+                $scanClause = isset($wildCardSearch) ? $wildCardSearch : $lemma_query;
+                $exact = false;
+            }
+        }
+        $scanResult = $this->getScanResult($sqlstr, $scanClause, $exact, $isNumber);
+        if ($scanResult !== '') {
+            $ret = new Response();
+            $ret->getHeaders()->addHeaders(array('content-type' => 'text/xml'));
+            $ret->setContent($scanResult);
+        } else {
+            $ret = $this->errorDiagnostics;
+        }
+        return $ret;
+    }
+
+    private function addReleasedFilter() {
+        $relseasedXPathFilter = array(
+                "-change-f-status-" => "released",
+            );
+        if (in_array($this->params->context[0], $this->restrictedGlossaries)) {
+            if (isset($this->options["xpath-filters"])) {
+            $this->options["xpath-filters"] = array_merge($this->options["xpath-filters"],
+            $relseasedXPathFilter);            
+            } else {
+                $this->options["xpath-filters"] = $relseasedXPathFilter;  
+            }
+        }
+    }
+    /**
+     * 
+     */
  public function search()
  {  
     $glossTable = $this->params->context[0];     
     // HACK, sql parser? cql.php = GPL -> this GPL too
     $this->params->query = str_replace("\"", "", $this->params->query);
-    $options = array("filter" => "-",
-                     "distinct-values" => false,
-        );
-    $options["startRecord"] = $this->params->startRecord;
-    $options["maximumRecords"] = $this->params->maximumRecords;
+    $this->options = array_merge($this->options, array("distinct-values" => false,));
+    $this->options["startRecord"] = $this->params->startRecord;
+    $this->options["maximumRecords"] = $this->params->maximumRecords;
+    $this->addReleasedFilter();
     $lemma_query = $this->get_search_term_for_wildcard_search("entry", $this->params->query);
     if (!isset($lemma_query)) {
         $lemma_query = $this->get_search_term_for_wildcard_search("serverChoice", $this->params->query, "cql");
@@ -206,30 +220,24 @@ public function scan() {
         $this->populateSearchResult($this->db, "SELECT id, entry, sid, 1 FROM $glossTable WHERE id=$query", "Resource Fragment for pid");
         return;
     } else if (isset($sense_query_exact)) {
-        $options["query"] = $this->db->escape_string($sense_query_exact);
-        $options["xpath"] = "-quote-";
-        $options["exact"] = true;
+        $this->options["query"] = $this->db->escape_string($sense_query_exact);
+        $this->options["xpath"] = "-quote-";
+        $this->options["exact"] = true;
     } else if (isset($sense_query)) {
-        $options["query"] = $this->db->escape_string($sense_query);
-        $options["xpath"] = "-quote-";
+        $this->options["query"] = $this->db->escape_string($sense_query);
+        $this->options["xpath"] = "-quote-";
     } else if (isset($lemma_query_exact)) {
-        $options["query"] = $this->db->escape_string($lemma_query_exact);
-        $options["exact"] = true;
+        $this->options["query"] = $this->db->escape_string($lemma_query_exact);
+        $this->options["exact"] = true;
     } else if (isset($lemma_query)) {
-        $options["query"] = $this->db->escape_string($lemma_query);
+        $this->options["query"] = $this->db->escape_string($lemma_query);
     } else {
-        $options["query"] = $this->db->escape_string($this->params->query);
+        $this->options["query"] = $this->db->escape_string($this->params->query);
     }
-    $options["dbtable"] = $glossTable;
-    
-    if (in_array($glossTable, $this->restrictedGlossaries)) {
-        $options["xpath-filters"] = array (
-            "-change-f-status-" => "released",
-        );
-    }
+    $this->options["dbtable"] = $glossTable;
 
-    $searchResult = $this->getSearchResult($options, "Glossary for " . $options["query"],
-            new glossaryComparatorFactory($options["query"]));
+    $searchResult = $this->getSearchResult($this->options, "Glossary for " . $this->options["query"],
+            new glossaryComparatorFactory($this->options["query"]));
     if ($searchResult !== '') { 
         $ret = new Response();    
         $ret->getHeaders()->addHeaders(array('content-type' => 'text/xml'));
