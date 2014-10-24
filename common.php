@@ -276,11 +276,11 @@ public function sqlForXPath($table, $xpath, $options = NULL) {
 
 protected function genereatePrefilterSql($table, $options) {
     $recursiveOptions = $options;
-    $recursiveOptions["xpath-filters"] = array_slice($recursiveOptions["xpath-filters"], 2, 0, true);
+    $recursiveOptions["xpath-filters"] = array_slice($recursiveOptions["xpath-filters"], 1, null, true);
     if (count($recursiveOptions["xpath-filters"]) === 0) {
         $tableOrPrefilter = $table;
     } else {
-        $tableOrPrefilter = genereatePrefilterSql($table, $recursiveOptions);
+        $tableOrPrefilter = $this->genereatePrefilterSql($table, $recursiveOptions);
     }
     $filter = '';
     if (isset($options["filter"])) {
@@ -291,9 +291,20 @@ protected function genereatePrefilterSql($table, $options) {
             $filter .= "WHERE tab.txt != '$f'";
         }
     }
-    return "(SELECT tab.id, tab.xpath, tab.txt FROM $table AS tab INNER JOIN " .
+    if (is_array(current($options["xpath-filters"]))) {
+        $filterSpecs = current($options["xpath-filters"]);
+        $as = $filterSpecs["as"];
+        $boolOps = array('<', '>', '<=', '>=', '=', '!=');
+        $boolSpec = array_intersect_key($filterSpecs, array_flip($boolOps));
+        $op = key($boolSpec);
+        $value = current($boolSpec);
+        $whereClause = "CAST(inner.txt AS $as) $op $value ";
+    } else {
+        $whereClause = "inner.txt = '" . current($options["xpath-filters"]) . "' ";
+    }
+    return "(SELECT tab.id, tab.xpath, tab.txt FROM $tableOrPrefilter AS tab INNER JOIN " .
             "(SELECT inner.id FROM $table AS `inner` WHERE ". 
-            "inner.txt = '" . current($options["xpath-filters"]) . "' " .
+            $whereClause .
             "AND inner.xpath LIKE '%" . key($options["xpath-filters"]) . "') " .
            "AS prefid ON tab.id = prefid.id $filter)";
 }
@@ -698,7 +709,7 @@ protected function getScanResult($sqlstr, $entry = NULL, $exact = true, $isNumbe
 
         $tmpl->setVar('version', $this->params->version);
         $tmpl->setVar('count', $numberOfRecords);
-        $tmpl->setVar('transformedQuery', $sqlstr);
+        $tmpl->setVar('transformedQuery', str_replace('<', '&lt;', $sqlstr));
         $tmpl->setVar('clause', $this->params->scanClause);
         $responsePosition = 0;
         $tmpl->setVar('responsePosition', $responsePosition);
