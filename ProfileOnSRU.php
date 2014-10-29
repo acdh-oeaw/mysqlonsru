@@ -213,11 +213,11 @@ public function sampleTextQuery($query) {
         return;
     } else if (isset($sampleText_query_exact)) {
         $regionGuess = explode('_', $sampleText_query_exact);
-        populateSampleTextResult($db->escape_string($sampleText_query_exact), $db, $regionGuess[0]);
+        $base->populateSampleTextResult($db->escape_string($sampleText_query_exact), $db, $regionGuess[0]);
         return;
     } else if (isset($sampleText_query)) {
         $regionGuess = explode('_', $sampleText_query);
-        populateSampleTextResult("%" . $db->escape_string(strtolower($sampleText_query)) . "%", $db, $regionGuess[0]);
+        $base->populateSampleTextResult("%" . $db->escape_string(strtolower($sampleText_query)) . "%", $db, $regionGuess[0]);
         return;
     } else if (isset($geo_query_exact)){
         $description = "Arabic dialect profile for the coordinates $geo_query_exact";

@@ -93,6 +93,12 @@ public function db_connect() {
     if ($this->db->connect_errno) {
         $this->errorDiagnostics = new SRUDiagnostics(1, 'MySQL Connection Error: Failed to connect to database: (' . $this->db->connect_errno . ") " . $this->db->connect_error);
     }
+    $this->db->set_charset('utf8');
+    $this->db->query("SET character_set_results = 'utf8',"
+            . " character_set_client = 'utf8',"
+            . " character_set_connection = 'utf8',"
+            . " character_set_database = 'utf8',"
+            . " character_set_server = 'utf8'");
     return $this->db;
 }
 
@@ -209,14 +215,6 @@ public function sqlForXPath($table, $xpath, $options = NULL) {
         }
         // ndx search
         $indexTable = $table . "_ndx";
-//        if (isset($options["filter"])) {
-//            $f = $options["filter"];
-//            if (strpos($f, '%') !== false) {
-//                $filter .= "ndx.txt NOT LIKE '$f'";
-//            } else {
-//                $filter .= "ndx.txt != '$f'";
-//            }
-//        }
         if (isset($options["xpath-filters"])) {
             $tableOrPrefilter = $this->genereatePrefilterSql($indexTable, $options);
         } else {
@@ -242,7 +240,7 @@ public function sqlForXPath($table, $xpath, $options = NULL) {
         $indexTable = "(SELECT ndx.id, ndx.txt FROM " . $tableOrPrefilter .
                 " AS ndx WHERE ". $this->_and($query, $this->_and($filter, $likeXpath)).
                 // There seems no point in reporting all id + txt if the query did match a lot of txt
-                ' GROUP BY ndx.id)';
+                ')';
         // base
         if (isset($options["show-lemma"]) && $options["show-lemma"] === true) {
             $lemma = ", base.lemma";
@@ -302,11 +300,12 @@ protected function genereatePrefilterSql($table, $options) {
     } else {
         $whereClause = "inner.txt = '" . current($options["xpath-filters"]) . "' ";
     }
-    return "(SELECT tab.id, tab.xpath, tab.txt FROM $tableOrPrefilter AS tab INNER JOIN " .
-            "(SELECT inner.id FROM $table AS `inner` WHERE ". 
-            $whereClause .
-            "AND inner.xpath LIKE '%" . key($options["xpath-filters"]) . "') " .
-           "AS prefid ON tab.id = prefid.id $filter)";
+    return "(SELECT tab.id, tab.xpath, tab.txt FROM $tableOrPrefilter AS tab ".
+            "INNER JOIN " .
+                "(SELECT inner.id FROM $table AS `inner` WHERE ". 
+                $whereClause .
+                "AND inner.xpath LIKE '%" . key($options["xpath-filters"]) . "') AS prefid ".
+            "ON tab.id = prefid.id $filter)";
 }
 
 /**
@@ -529,7 +528,7 @@ protected function getSearchResult($sql, $description, $comparatorFactory = NULL
         // There is currently no support for limiting the number of results.
         $tmpl->setVar('returnedRecords', $result->num_rows);
         $tmpl->setVar('query', $this->params->query);
-        $tmpl->setVar('transformedQuery', $sql);
+        $tmpl->setVar('transformedQuery', str_replace('<', '&lt;', $sql));
         $tmpl->setVar('baseURL', $baseURL);
         $tmpl->setVar('xcontext', $this->params->xcontext);
         $tmpl->setVar('xdataview', $this->params->xdataview);
@@ -665,6 +664,10 @@ protected function getScanResult($sqlstr, $entry = NULL, $exact = true, $isNumbe
             $term = array(
                 'value' => $this->decodecharrefs($row[0]),
                 'numberOfRecords' => $entry_count,
+// may be usedul for debugging
+//                'sid' => $row['sid'],
+//                'idx' => $i,
+//                'rawValue' => $row[0],
             );
             // for sorting ignore some punctation marks etc.
             $term["sortValue"] = trim(preg_replace('/[?!()*,.\\-\\/|=]/', '', mb_strtoupper($term["value"], 'UTF-8')));
