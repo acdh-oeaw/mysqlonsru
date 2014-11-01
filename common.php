@@ -17,11 +17,6 @@ use clausvb\vlib\vlibTemplate,
     ACDH\FCSSRU\Http\Response,
     ACDH\FCSSRU\SRUDiagnostics;
 
-/**
- * Load database and user data
- */
-require_once $dbConfigFile;
-
 use ACDH\FCSSRU\SRUWithFCSParameters;
 
 class SRUFromMysqlBase {
@@ -84,10 +79,14 @@ class SRUFromMysqlBase {
  * @return \mysqli
  */
 public function db_connect() {
-    global $server;
-    global $user;
-    global $password;
-    global $database;
+    $server = '';
+    $user = '';
+    $password = '';
+    $database = '';
+    
+// Load database and user data
+    global $dbConfigFile;
+    require_once $dbConfigFile;
 
     $this->db = new \mysqli($server, $user, $password, $database);
     if ($this->db->connect_errno) {
@@ -536,7 +535,7 @@ protected function getSearchResult($sql, $description, $comparatorFactory = NULL
         $nextRecordPosition = 0;
         $tmpl->setVar('nextRecordPosition', $nextRecordPosition);
         $tmpl->setVar('res', '1');
-
+        
         $hits = array();
         $hitsMetaData = null;
 //        $hitsMetaData = array();
@@ -589,12 +588,30 @@ protected function getSearchResult($sql, $description, $comparatorFactory = NULL
             usort($hits, array($comparator, 'sortSearchResult'));
         }
         $tmpl->setloop('hits', $hits);
+        $this->addXDebugErrorsIfExist($tmpl);
         return $tmpl->grab();
     } else {
-        $this->errorDiagnostics = new SRUdiagnostics(1, 'MySQL query error: Query was: ' . $sql);
+        $errorMessage = $this->db->error;
+        $this->errorDiagnostics = new SRUdiagnostics(1, "MySQL query error: $errorMessage; Query was: $sql");
         return '';
     }
    }
+
+    protected function addXDebugErrorsIfExist(vlibTemplate $tmpl) {
+        if (\function_exists('\\xdebug_get_collected_errors')) {
+            $errorsString = '';
+            $xdebugErrors = \xdebug_get_collected_errors(true);
+            foreach ($xdebugErrors as $error) {
+                $errorsString .= $error;
+            }
+            if ($errorsString !== '') {
+                $tmpl->setVar('wantDiag', true);
+                $tmpl->setVar('errorsString', $errorsString);
+            }
+            \xdebug_stop_error_collection();
+        }
+    }
+    
 /**
  * Execute a search and return the result using the $responseTemplate
  * @uses $responseTemplate
@@ -717,6 +734,7 @@ protected function getScanResult($sqlstr, $entry = NULL, $exact = true, $isNumbe
         $responsePosition = 0;
         $tmpl->setVar('responsePosition', $responsePosition);
         $tmpl->setVar('maximumTerms', $maximumTerms);
+        $this->addXDebugErrorsIfExist($tmpl);
 
         return $tmpl->grab();
     } else {
@@ -756,6 +774,9 @@ public function populateScanResult($db, $sqlstr, $entry = NULL, $exact = true, $
  * @return Response
  */
 public function run() {
+    if (function_exists('xdebug_start_error_collection')) {
+        xdebug_start_error_collection();
+    }
     $this->db = $this->db_connect();
     if ($this->db ->connect_errno) {
         $ret = $this->errorDiagnostics;
@@ -818,6 +839,9 @@ public function shouldNotSendMetadata() {
 public static function processRequest() {
     global $sru_fcs_params;
     
+    if (function_exists('xdebug_start_error_collection')) {
+        xdebug_start_error_collection();
+    }    
     if ($sru_fcs_params->operation == "explain" || $sru_fcs_params->operation == "") {
         explain();
     } else if ($sru_fcs_params->operation == "scan") {

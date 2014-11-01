@@ -245,10 +245,11 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
     } else {
         $ret = $this->errorDiagnostics;
     }
-    return $ret; }
+    return $ret;    
+    }
     
 protected function processSearchResult($line) {
-    global $glossTable;
+    $glossTable = $this->params->context[0];
     
     $xmlcode = str_replace("\n\n", "\n", $this->decodecharrefs($line[1]));
 
@@ -271,7 +272,7 @@ protected function processSearchResult($line) {
             //print $hstr;
 
             $subresult = $this->db->query($hstr);
-            while ($subline = $subresult->fetch_row()) {
+            while (($subresult !== false) && ($subline = $subresult->fetch_row())) {
                 $elements = $xpath->query("//ptr[@target='" . $subline[0] . "']");
                 if ((!is_null($elements)) && ($elements->length != 0)) {
                     // XML ID will be twice in the result as this script selects
