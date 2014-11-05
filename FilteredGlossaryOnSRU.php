@@ -26,7 +26,7 @@ class FilteredGlossaryOnSRU extends GlossaryOnSRU {
     
     protected function addFilter() {
         $this->options["xpath-filters"] = array(
-            "entry-xr-bibl-tunisCourse-" => array('as' => 'signed int', '<' => '2'),
+            "-bibl-tunisCourse-" => array('as' => 'signed int', '<=' => '3'),
         );
     }
     
