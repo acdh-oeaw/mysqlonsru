@@ -19,6 +19,10 @@ if (isset($resetRunner)) {
 }
 
 class FilteredGlossaryOnSRU extends GlossaryOnSRU {
+    public function __construct(SRUWithFCSParameters $params = null) {
+        parent::__construct($params);
+        $this->params->context[0] = rtrim($this->params->context[0], 'F');
+    }
     
     protected function addFilter() {
         $this->options["xpath-filters"] = array(
