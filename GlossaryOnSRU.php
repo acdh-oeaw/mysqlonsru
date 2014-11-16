@@ -67,7 +67,6 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
         $resIdParts = explode("_", $glossTable);
         $langId = $this->langId2LangName($resIdParts[0]);
         $transLangId = $this->langId2LangName($resIdParts[1]);
-        $this->indices = array();
 
         array_push($this->indices, array(
             'title' => "VICAV $langId - $transLangId any entry",
@@ -86,8 +85,24 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
         ));
 
         array_push($this->indices, array(
+            'title' => "Language Course $langId - $transLangId unit",
+            'name' => 'unit',
+            'search' => 'true',
+            'scan' => 'true',
+            'sort' => 'false',
+        ));
+
+        array_push($this->indices, array(
             'title' => 'Resource Fragement PID',
             'name' => 'rfpid',
+            'search' => 'true',
+            'scan' => 'true',
+            'sort' => 'false',
+        ));
+
+        array_push($this->indices, array(
+            'title' => 'XML ID',
+            'name' => 'xmlid',
             'search' => 'true',
             'scan' => 'true',
             'sort' => 'false',
@@ -130,6 +145,11 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
             $scanClause = null;
             $exact = true;
             $isNumber = true;
+        } else if ($this->params->scanClause === 'xmlid') {
+            $sqlstr = "SELECT sid, entry, id FROM $glossTable ORDER BY sid";
+            $scanClause = null;
+            $exact = true;
+            $isNumber = true;
         } else {
             if ($this->params->scanClause === '' ||
                     strpos($this->params->scanClause, 'entry') === 0 ||
@@ -138,6 +158,8 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
                 $sqlstr = $this->sqlForXPath($glossTable, "", $this->options);
             } else if (strpos($this->params->scanClause, 'sense') === 0) {
                 $sqlstr = $this->sqlForXPath($glossTable, "-quote-", $this->options);
+            } else if (strpos($this->params->scanClause, 'unit') === 0) {
+                $sqlstr = $this->sqlForXPath($glossTable, "-bibl-%Course-", $this->options);
             } else {
                 return new SRUdiagnostics(51, 'Result set: ' . $this->params->scanClause);
             }
@@ -150,18 +172,37 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
             if (!isset($lemma_query_exact)) {
                 $lemma_query_exact = $this->get_search_term_for_exact_search("serverChoice", $this->params->scanClause, "cql");
             }
+            $sense_query = $this->get_search_term_for_wildcard_search("sense", $this->params->scanClause);
+            $sense_query_exact = $this->get_search_term_for_exact_search("sense", $this->params->scanClause);
+            $unit_query = $this->get_search_term_for_wildcard_search("unit", $this->params->scanClause);
+            $unit_query_exact = $this->get_search_term_for_exact_search("unit", $this->params->scanClause);
+            if (!isset($unit_query_exact)) {
+                $unit_query_exact = $unit_query;
+            }
 
             $isNumber = false;
             $exact = false;
             $scanClause = ""; // a scan clause that is no index cannot be used.
             if (isset($lemma_query_exact)) { // lemma query matches lemma query exact also!
-                $wildCardSearch = get_wild_card_search($lemma_query_exact);
+                $wildCardSearch = $this->get_wild_card_search($lemma_query_exact);
                 $scanClause = isset($wildCardSearch) ? $wildCardSearch : $lemma_query_exact;
                 $exact = true;
             } else if (isset($lemma_query)) {
-                $wildCardSearch = get_wild_card_search($lemma_query);
+                $wildCardSearch = $this->get_wild_card_search($lemma_query);
                 $scanClause = isset($wildCardSearch) ? $wildCardSearch : $lemma_query;
                 $exact = false;
+            } else if (isset($sense_query_exact)) { // sense query matches lemma query exact also!
+                $wildCardSearch = $this->get_wild_card_search($sense_query_exact);
+                $scanClause = isset($wildCardSearch) ? $wildCardSearch : $sense_query_exact;
+                $exact = true;               
+            } else if (isset($sense_query)) {
+                $wildCardSearch = $this->get_wild_card_search($sense_query);
+                $scanClause = isset($wildCardSearch) ? $wildCardSearch : $sense_query;
+                $exact = false;  
+            } else if (isset($unit_query)) {
+                $wildCardSearch = $this->get_wild_card_search($unit_query);
+                $scanClause = isset($wildCardSearch) ? $wildCardSearch : $unit_query;
+                $exact = true;  
             }
         }
         $scanResult = $this->getScanResult($sqlstr, $scanClause, $exact, $isNumber);
@@ -191,65 +232,84 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
     /**
      * 
      */
- public function search()
- {  
-    $glossTable = $this->params->context[0];     
-    // HACK, sql parser? cql.php = GPL -> this GPL too
-    $this->params->query = str_replace("\"", "", $this->params->query);
-    $this->options = array_merge($this->options, array("distinct-values" => false,));
-    $this->options["startRecord"] = $this->params->startRecord;
-    $this->options["maximumRecords"] = $this->params->maximumRecords;
-    $this->addReleasedFilter();
-    $lemma_query = $this->get_search_term_for_wildcard_search("entry", $this->params->query);
-    if (!isset($lemma_query)) {
-        $lemma_query = $this->get_search_term_for_wildcard_search("serverChoice", $this->params->query, "cql");
-    }
-    $lemma_query_exact = $this->get_search_term_for_exact_search("entry", $this->params->query);
-    if (!isset($lemma_query_exact)) {
-        $lemma_query_exact = $this->get_search_term_for_exact_search("serverChoice", $this->params->query, "cql");
-    }
-    $sense_query_exact = $this->get_search_term_for_exact_search("sense", $this->params->query);
-    $sense_query = $this->get_search_term_for_wildcard_search("sense", $this->params->query);
- 
-    $rfpid_query = $this->get_search_term_for_wildcard_search("rfpid", $this->params->query);
-    $rfpid_query_exact = $this->get_search_term_for_exact_search("rfpid", $this->params->query);
-    if (!isset($rfpid_query_exact)) {
-        $rfpid_query_exact = $rfpid_query;
-    }
-    if (isset($rfpid_query_exact)) {
-        $query = $this->db->escape_string($rfpid_query_exact);
-        $this->populateSearchResult($this->db, "SELECT id, entry, sid, 1 FROM $glossTable WHERE id=$query", "Resource Fragment for pid");
-        return;
-    } else if (isset($sense_query_exact)) {
-        $this->options["query"] = $this->db->escape_string($sense_query_exact);
-        $this->options["xpath"] = "-quote-";
-        $this->options["exact"] = true;
-    } else if (isset($sense_query)) {
-        $this->options["query"] = $this->db->escape_string($sense_query);
-        $this->options["xpath"] = "-quote-";
-    } else if (isset($lemma_query_exact)) {
-        $this->options["query"] = $this->db->escape_string($lemma_query_exact);
-        $this->options["exact"] = true;
-    } else if (isset($lemma_query)) {
-        $this->options["query"] = $this->db->escape_string($lemma_query);
-    } else {
-        $this->options["query"] = $this->db->escape_string($this->params->query);
-    }
-    $this->options["dbtable"] = $glossTable;
+    public function search() {
+        $glossTable = $this->params->context[0];
+        // HACK, sql parser? cql.php = GPL -> this GPL too
+        $this->params->query = str_replace("\"", "", $this->params->query);
+        $this->options = array_merge($this->options, array("distinct-values" => false,));
+        $this->options["startRecord"] = $this->params->startRecord;
+        $this->options["maximumRecords"] = $this->params->maximumRecords;
+        $this->addReleasedFilter();
+        $lemma_query = $this->get_search_term_for_wildcard_search("entry", $this->params->query);
+        if (!isset($lemma_query)) {
+            $lemma_query = $this->get_search_term_for_wildcard_search("serverChoice", $this->params->query, "cql");
+        }
+        $lemma_query_exact = $this->get_search_term_for_exact_search("entry", $this->params->query);
+        if (!isset($lemma_query_exact)) {
+            $lemma_query_exact = $this->get_search_term_for_exact_search("serverChoice", $this->params->query, "cql");
+        }
+        $sense_query_exact = $this->get_search_term_for_exact_search("sense", $this->params->query);
+        $sense_query = $this->get_search_term_for_wildcard_search("sense", $this->params->query);
 
-    $searchResult = $this->getSearchResult($this->options, "Glossary for " . $this->options["query"],
-            new glossaryComparatorFactory($this->options["query"]));
-    if ($searchResult !== '') { 
-        $ret = new Response();    
-        $ret->getHeaders()->addHeaders(array('content-type' => 'text/xml'));
-        $ret->setContent($searchResult);
-    } else {
-        $ret = $this->errorDiagnostics;
+        $unit_query = $this->get_search_term_for_wildcard_search("unit", $this->params->query);
+        $unit_query_exact = $this->get_search_term_for_exact_search("unit", $this->params->query);
+        if (!isset($unit_query_exact)) {
+            $unit_query_exact = $unit_query;
+        }
+
+        $rfpid_query = $this->get_search_term_for_wildcard_search("rfpid", $this->params->query);
+        $rfpid_query_exact = $this->get_search_term_for_exact_search("rfpid", $this->params->query);
+        if (!isset($rfpid_query_exact)) {
+            $rfpid_query_exact = $rfpid_query;
+        }
+
+        $xmlid_query = $this->get_search_term_for_wildcard_search("xmlid", $this->params->query);
+        $xmlid_query_exact = $this->get_search_term_for_exact_search("xmlid", $this->params->query);
+        if (!isset($xmlid_query_exact)) {
+            $xmlid_query_exact = $xmlid_query;
+        }
+        
+        if (isset($rfpid_query_exact)) {
+            $query = $this->db->escape_string($rfpid_query_exact);
+            $searchResult = $this->getSearchResult("SELECT id, entry, sid, 1 FROM $glossTable WHERE id='$query'", "Resource Fragment for pid");
+        } else if (isset($xmlid_query_exact)) {
+            $query = $this->db->escape_string($xmlid_query_exact);
+            $searchResult = $this->getSearchResult("SELECT sid, entry, id, 1 FROM $glossTable WHERE sid='$query'", "XML ID");
+        } else {
+            if (isset($sense_query_exact)) {
+                $this->options["query"] = $this->db->escape_string($sense_query_exact);
+                $this->options["xpath"] = "-quote-";
+                $this->options["exact"] = true;
+            } else if (isset($sense_query)) {
+                $this->options["query"] = $this->db->escape_string($sense_query);
+                $this->options["xpath"] = "-quote-";
+            } else  if (isset($unit_query_exact)) {
+                $this->options["query"] = $this->db->escape_string($unit_query_exact);
+                $this->options["xpath"] = "-bibl-%Course-";
+                $this->options["exact"] = true;
+            } else if (isset($lemma_query_exact)) {
+                $this->options["query"] = $this->db->escape_string($lemma_query_exact);
+                $this->options["exact"] = true;
+            } else if (isset($lemma_query)) {
+                $this->options["query"] = $this->db->escape_string($lemma_query);
+            } else {
+                $this->options["query"] = $this->db->escape_string($this->params->query);
+            }
+            $this->options["dbtable"] = $glossTable;
+
+            $searchResult = $this->getSearchResult($this->options, "Glossary for " . $this->options["query"], new glossaryComparatorFactory($this->options["query"]));
+        }
+        if ($searchResult !== '') {
+            $ret = new Response();
+            $ret->getHeaders()->addHeaders(array('content-type' => 'text/xml'));
+            $ret->setContent($searchResult);
+        } else {
+            $ret = $this->errorDiagnostics;
+        }
+        return $ret;
     }
-    return $ret;    
-    }
-    
-protected function processSearchResult($line) {
+
+    protected function processSearchResult($line) {
     $glossTable = $this->params->context[0];
     
     $xmlcode = str_replace("\n\n", "\n", $this->decodecharrefs($line[1]));

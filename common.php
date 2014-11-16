@@ -67,6 +67,7 @@ class SRUFromMysqlBase {
         } else {
             $this->params = $params;
         }
+        $this->indices = array();
     }
     
 /**
