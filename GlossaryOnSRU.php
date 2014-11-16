@@ -145,11 +145,6 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
             $scanClause = null;
             $exact = true;
             $isNumber = true;
-        } else if ($this->params->scanClause === 'xmlid') {
-            $sqlstr = "SELECT sid, entry, id FROM $glossTable ORDER BY sid";
-            $scanClause = null;
-            $exact = true;
-            $isNumber = true;
         } else {
             if ($this->params->scanClause === '' ||
                     strpos($this->params->scanClause, 'entry') === 0 ||
@@ -160,6 +155,8 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
                 $sqlstr = $this->sqlForXPath($glossTable, "-quote-", $this->options);
             } else if (strpos($this->params->scanClause, 'unit') === 0) {
                 $sqlstr = $this->sqlForXPath($glossTable, "-bibl-%Course-", $this->options);
+            } else if (strpos($this->params->scanClause, 'xmlid') === 0) {
+                $sqlstr = $this->sqlForXPath($glossTable, "-xml:id", $this->options);
             } else {
                 return new SRUdiagnostics(51, 'Result set: ' . $this->params->scanClause);
             }
@@ -178,6 +175,11 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
             $unit_query_exact = $this->get_search_term_for_exact_search("unit", $this->params->scanClause);
             if (!isset($unit_query_exact)) {
                 $unit_query_exact = $unit_query;
+            }
+            $xmlid_query = $this->get_search_term_for_wildcard_search("xmlid", $this->params->scanClause);
+            $xmlid_query_exact = $this->get_search_term_for_exact_search("xmlid", $this->params->scanClause);
+            if (!isset($unit_query_exact)) {
+                $xmlid_query_exact = $xmlid_query;
             }
 
             $isNumber = false;
@@ -199,9 +201,13 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
                 $wildCardSearch = $this->get_wild_card_search($sense_query);
                 $scanClause = isset($wildCardSearch) ? $wildCardSearch : $sense_query;
                 $exact = false;  
-            } else if (isset($unit_query)) {
-                $wildCardSearch = $this->get_wild_card_search($unit_query);
-                $scanClause = isset($wildCardSearch) ? $wildCardSearch : $unit_query;
+            } else if (isset($unit_query_exact)) {
+                $wildCardSearch = $this->get_wild_card_search($unit_query_exact);
+                $scanClause = isset($wildCardSearch) ? $wildCardSearch : $unit_query_exact;
+                $exact = true;  
+            } else if (isset($xmlid_query_exact)) {
+                $wildCardSearch = $this->get_wild_card_search($xmlid_query_exact);
+                $scanClause = isset($wildCardSearch) ? $wildCardSearch : $xmlid_query_exact;
                 $exact = true;  
             }
         }
