@@ -128,7 +128,7 @@ require_once __DIR__ . "/common.php";
     }
     if (isset($rfpid_query_exact)) {
         $query = $db->escape_string($rfpid_query_exact);
-        populateSearchResult($db, "SELECT id, entry, sid, 1 FROM $sampleTable WHERE id=$query", "Resource Fragment for pid");
+        $base->populateSearchResult($db, "SELECT id, entry, sid, 1 FROM $sampleTable WHERE id=$query", "Resource Fragment for pid");
         return;
     } else if (isset($sampleText_query_exact)) {
         $description = "Arabic sample text $sampleText_query_exact";
@@ -155,7 +155,7 @@ require_once __DIR__ . "/common.php";
         $options["exact"] = false;
         $sqlstr = $options;
     }
-    populateSearchResult($db, $sqlstr, $description);
+    $base->populateSearchResult($db, $sqlstr, $description);
 }
 
 /**
@@ -183,7 +183,7 @@ function scan() {
     
     if ($sru_fcs_params->scanClause === 'rfpid') {
        $sqlstr = "SELECT id, entry, sid FROM $sampleTable ORDER BY CAST(id AS SIGNED)";
-       populateScanResult($db, $sqlstr, NULL, true, true);
+       $base->populateScanResult($db, $sqlstr, NULL, true, true);
        return;
     }
     if ($sru_fcs_params->scanClause === 'sampleText' ||
