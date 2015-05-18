@@ -25,6 +25,11 @@ require_once __DIR__ . "/common.php";
 
 class ProfileOnSRU extends SRUFromMysqlBase {
 
+    public function __construct(\ACDH\FCSSRU\SRUWithFCSParameters $params = null) {
+        parent::__construct($params);
+        $this->extendedSearchResultProcessing = true;
+    }
+    
 public function populateSampleTextResult($escapedQueryString, $db, $region) {
     global $profileTable;
 
@@ -46,6 +51,28 @@ public function getLemmaWhereClauseExact($query) {
 
 public function sampleTextQuery($query) {
     return $this->encodecharrefs(strtolower($query));
+}
+
+    protected function processSearchResult($line) {
+    $glossTable = $this->params->context[0];
+    
+    $xmlcode = str_replace("\n\n", "\n", $this->decodecharrefs($line[1]));
+
+    $doc = new \DOMDocument();
+    $doc->loadXML($xmlcode);
+
+    $xpath = new \DOMXpath($doc);
+    $teiHeader = $xpath->query("//teiHeader");
+
+    if ((!is_null($teiHeader)) && ($teiHeader->length === 1) && isset($line[2])) {
+       $teiHeader = $teiHeader->item(0);
+       $revDescFragment = $doc->createDocumentFragment();
+       $revDescFragment->appendXML("<revisionDesc><change>$line[2]</change></revisionDesc>");
+       $teiHeader->appendChild($revDescFragment);
+    }
+    $content = str_replace("<?xml version=\"1.0\"?>", "", $doc->saveXML());
+    $content = str_replace("&lt;", "<", str_replace("&gt;", ">", str_replace("&amp;", "&amp;amp;", $content)));
+    return $content;
 }
 }
 /**
@@ -247,7 +274,7 @@ public function sampleTextQuery($query) {
            $query = $db->escape_string($sru_fcs_params->query);
        }
        $description = "Arabic dialect profile for the region of $query"; 
-       $sqlstr = "SELECT DISTINCT id, entry FROM $profileTable ";
+       $sqlstr = "SELECT DISTINCT id, entry, status FROM $profileTable ";
        if (isset($profile_query_exact) || isset($metaText_query_exact) || isset($text_query_exact)) {
           $sqlstr.= $base->getLemmaWhereClauseExact($query); 
        } else {
