@@ -111,6 +111,9 @@ public function db_connect() {
  */
 protected function decodecharrefs($str) {
     $replacements = array(
+        "&gt;" => '&amp;gt;',
+        "&lt;" => '&amp;lt;',
+        "&amp;" => '&amp;amp;',
         "#8#38#9#" => '&amp;amp;', // & -> &amp;
         "#9#" => ";",
         "#8#" => "&#",
