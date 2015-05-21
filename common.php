@@ -232,11 +232,12 @@ public function sqlForXPath($table, $xpath, $options = NULL) {
             $likeXpath .= ')';
         }
         if (isset($options["query"])) {
-            $q = $this->encodecharrefs($options["query"]);
+            $q = $options["query"];
+            $qEnc = $this->encodecharrefs($q);
             if (isset($options["exact"]) && $options["exact"] === true) {
-               $query .= "ndx.txt = '$q'";
+               $query .= "ndx.txt = '$q' OR ndx.txt = '$qEnc'";
             } else {
-               $query .= "ndx.txt LIKE '%$q%'";
+               $query .= "ndx.txt LIKE '%$q%' OR ndx.txt LIKE '%$qEnc%'";
             }
         }
 
@@ -874,7 +875,7 @@ public function get_search_term_for_wildcard_search($index, $queryString, $index
     } else {
         $ret = preg_filter('/' . $index . ' *(=|any) *(.*)/', '$2', $queryString);
     }
-    return $this->encodecharrefs($ret);
+    return $ret;
 }
 
 /**
@@ -898,7 +899,7 @@ public function get_search_term_for_exact_search($index, $queryString, $index_co
     } else {
         $ret = preg_filter('/' . $index . ' *(==|(cql\.)?string) *(.*)/', '$3', $queryString);
     }
-    return $this->encodecharrefs($ret);
+    return $ret;
 }
 
 /**

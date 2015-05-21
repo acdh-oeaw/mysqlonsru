@@ -42,11 +42,11 @@ public function populateSampleTextResult($escapedQueryString, $db, $region) {
 }
 
 public function getLemmaWhereClause($query) {
-    return "WHERE lemma LIKE '%" . $this->encodecharrefs($query) . "%'";
+    return "WHERE lemma LIKE '%" . $this->encodecharrefs($query) . "%' OR lemma LIKE '%$query%'";
 }
 
 public function getLemmaWhereClauseExact($query) {
-    return "WHERE lemma = '" . $this->encodecharrefs($query) . "'";
+    return "WHERE lemma = '" . $this->encodecharrefs($query) . "' OR lemma = '$query'";
 }
 
 public function sampleTextQuery($query) {
