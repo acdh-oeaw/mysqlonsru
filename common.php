@@ -755,6 +755,9 @@ protected function getScanResult($sqlstr, $entry = NULL, $exact = true, $isNumbe
         $position = $startPosition;
         $shortList = array();
         while ($position < min($maximumTerms + $startPosition, count($sortedTerms))){
+            $sortedTerms[$position]['value'] = htmlentities($sortedTerms[$position]['value'], ENT_XML1);
+            if (isset($sortedTerms[$position]['displayTerm']))
+                $sortedTerms[$position]['displayTerm'] = htmlentities($sortedTerms[$position]['displayTerm'], ENT_XML1);
             array_push($shortList, $sortedTerms[$position]);
             $shortList[$position]["position"] = $position + 1;
             $position++;
