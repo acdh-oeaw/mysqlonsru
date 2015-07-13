@@ -392,13 +392,16 @@ class glossarySearchResultComparator extends searchResultComparator {
      * 
      * @param array $a An array with a 'content' field
      * @param array $b An array with a 'content' field
+     *  https://bugs.php.net/bug.php?id=50688 exception may not be used!
      */
     public function sortSearchResult($a, $b) {
         $xmla = new \DOMDocument;
-        try {$xmla->loadXML($a['content']);} catch (ErrorOrWarningException $e) {}
+        ErrorOrWarningException::$code_has_known_errors = true;
+        $xmla->loadXML($a['content']);
         $xmlaXPath = new \DOMXPath($xmla);
         $xmlb = new \DOMDocument;
-        try {$xmlb->loadXML($b['content']);} catch (ErrorOrWarningException $e) {}
+        $xmlb->loadXML($b['content']);
+        ErrorOrWarningException::$code_has_known_errors = false;
         $xmlbXPath = new \DOMXPath($xmlb);
         $similarityA = 1;
         $similarityB = 1;
