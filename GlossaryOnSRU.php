@@ -17,6 +17,7 @@
 namespace ACDH\FCSSRU\mysqlonsru;
 
 use ACDH\FCSSRU\mysqlonsru\SRUFromMysqlBase,
+    ACDH\FCSSRU\ErrorOrWarningException,
     ACDH\FCSSRU\SRUDiagnostics,
     ACDH\FCSSRU\SRUWithFCSParameters,
     ACDH\FCSSRU\Http\Response,
@@ -321,7 +322,12 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
     $xmlcode = str_replace("\n\n", "\n", $this->decodecharrefs($line[1]));
 
     $doc = new \DOMDocument();
-    $doc->loadXML($xmlcode);
+    
+    try {
+       $doc->loadXML($xmlcode);    
+    } catch (ErrorOrWarningException $exc) {
+       array_push($this->errors_array, $exc);
+    }
 
     $xpath = new \DOMXpath($doc);
     $elements = $xpath->query("//ptr[@type='example' or @type='multiWordUnit']");
@@ -389,10 +395,10 @@ class glossarySearchResultComparator extends searchResultComparator {
      */
     public function sortSearchResult($a, $b) {
         $xmla = new \DOMDocument;
-        $xmla->loadXML($a['content']);
+        try {$xmla->loadXML($a['content']);} catch (ErrorOrWarningException $e) {}
         $xmlaXPath = new \DOMXPath($xmla);
         $xmlb = new \DOMDocument;
-        $xmlb->loadXML($b['content']);
+        try {$xmlb->loadXML($b['content']);} catch (ErrorOrWarningException $e) {}
         $xmlbXPath = new \DOMXPath($xmlb);
         $similarityA = 1;
         $similarityB = 1;
