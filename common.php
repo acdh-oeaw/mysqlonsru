@@ -241,9 +241,9 @@ public function sqlForXPath($table, $xpath, $options = NULL) {
         }
 
         $indexTable = "(SELECT ndx.id, ndx.txt FROM " . $tableOrPrefilter .
-                " AS ndx WHERE ". $this->_and($query, $this->_and($filter, $likeXpath)).
+                " AS ndx WHERE ". $this->_and($query, $this->_and($filter, $likeXpath)). 
                 // There seems no point in reporting all id + txt if the query did match a lot of txt
-                ')';
+                'GROUP BY ndx.id)';
         // base
         if (isset($options["show-lemma"]) && $options["show-lemma"] === true) {
             $lemma = ", base.lemma";
@@ -271,7 +271,7 @@ public function sqlForXPath($table, $xpath, $options = NULL) {
     }
     return "SELECT" . ($justCount ? " COUNT(*) " : " ndx.txt, base.entry, base.sid" . $lemma . $groupCount) .
             " FROM " . $table . " AS base " .
-            "INNER JOIN " . $indexTable . " AS ndx ON base.id = ndx.id " .
+            "INNER JOIN " . $indexTable . " AS ndx ON base.id = ndx.id WHERE ndx.id > 700 " .
             $groupAndLimit;            
 }
 
