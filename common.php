@@ -15,6 +15,7 @@ require_once __DIR__ . "/../utils-php/common.php";
 
 use clausvb\vlib\vlibTemplate,
     ACDH\FCSSRU\Http\Response,
+    ACDH\FCSSRU\ErrorOrWarningException,
     ACDH\FCSSRU\SRUDiagnostics;
 
 use ACDH\FCSSRU\SRUWithFCSParameters;
@@ -59,6 +60,8 @@ class SRUFromMysqlBase {
     protected $explainTemplateFilename = '';
     protected $scanTemplateFilename = '';
     protected $responseTemplateFilename = '';
+    
+    protected $errors_array = array();
 
     public function __construct(SRUWithFCSParameters $params = null) {
         if (!isset($params)) {
@@ -232,11 +235,12 @@ public function sqlForXPath($table, $xpath, $options = NULL) {
             $likeXpath .= ')';
         }
         if (isset($options["query"])) {
-            $q = $this->encodecharrefs($options["query"]);
+            $q = $options["query"];
+            $qEnc = $this->encodecharrefs($q);
             if (isset($options["exact"]) && $options["exact"] === true) {
-               $query .= "ndx.txt = '$q'";
+               $query .= "ndx.txt = '$q' OR ndx.txt = '$qEnc'";
             } else {
-               $query .= "ndx.txt LIKE '%$q%'";
+               $query .= "ndx.txt LIKE '%$q%' OR ndx.txt LIKE '%$qEnc%'";
             }
         }
 
@@ -374,7 +378,9 @@ protected function getExplainResult($table, $publicName) {
         }
     }
     
+    ErrorOrWarningException::$code_has_known_errors = true;
     $tmpl = new vlibTemplate($this->explainTemplateFilename);
+    ErrorOrWarningException::$code_has_known_errors = false;
     
     $tmpl->setLoop('maps', $this->indices);
     
@@ -388,7 +394,10 @@ protected function getExplainResult($table, $publicName) {
     $tmpl->setVar('databaseAuthor', $authors);
     $tmpl->setVar('dbRestrictions', $restrictions);
     $tmpl->setVar('dbDescription', $description);
-    return $tmpl->grab();
+    ErrorOrWarningException::$code_has_known_errors = true;
+    $ret = $tmpl->grab();
+    ErrorOrWarningException::$code_has_known_errors = false;
+    return $ret;
 }
 /**
  * Fill in the ZeeRex explain template and return it to the client.
@@ -471,10 +480,17 @@ protected function getTEIDataAsXMLQueryObject($xmlText) {
         return null;
     }
     $xmlDoc = new \DOMDocument();
-    $xmlDoc->loadXML($xmlText);
+    try {
+        $xmlDoc->loadXML($xmlText);
+    } catch (ErrorOrWarningException $exc) {
+        array_push($this->errors_array, $exc);
+    }
+
     // forcebly register default and tei xmlns as tei
-    $xmlDoc->createAttributeNS('http://www.tei-c.org/ns/1.0', 'create-ns');
-    $xmlDoc->createAttributeNS('http://www.tei-c.org/ns/1.0', 'tei:create-ns');
+    try {
+        $xmlDoc->createAttributeNS('http://www.tei-c.org/ns/1.0', 'create-ns');
+        $xmlDoc->createAttributeNS('http://www.tei-c.org/ns/1.0', 'tei:create-ns');    
+    } catch (\DOMException $exc) {}
     $xmlDocXPath = new \DOMXPath($xmlDoc);
     return $xmlDocXPath;
 }
@@ -524,8 +540,10 @@ protected function getSearchResult($sql, $description, $comparatorFactory = NULL
             $numberOfRecords = $result->num_rows;
         }
 
+        ErrorOrWarningException::$code_has_known_errors = true;
         $tmpl = new vlibTemplate($responseTemplate);
-
+        ErrorOrWarningException::$code_has_known_errors = false;
+        
         $tmpl->setVar('version', $this->params->version);
         $tmpl->setVar('numberOfRecords', $numberOfRecords);
         // There is currently no support for limiting the number of results.
@@ -595,7 +613,10 @@ protected function getSearchResult($sql, $description, $comparatorFactory = NULL
         }
         $tmpl->setloop('hits', $hits);
         $this->addXDebugErrorsIfExist($tmpl);
-        return $tmpl->grab();
+        ErrorOrWarningException::$code_has_known_errors = true;
+        $ret = $tmpl->grab();
+        ErrorOrWarningException::$code_has_known_errors = false;
+        return $ret;
     } else {
         $errorMessage = $this->db->error;
         $this->errorDiagnostics = new SRUdiagnostics(1, "MySQL query error: $errorMessage; Query was: $sql");
@@ -604,17 +625,23 @@ protected function getSearchResult($sql, $description, $comparatorFactory = NULL
    }
 
     protected function addXDebugErrorsIfExist(vlibTemplate $tmpl) {
+        $errorsString = '';
+        if (count($this->errors_array > 0)) {
+            foreach ($this->errors_array as $exc) {
+                $errorsString .= basename($exc->getFile(), '.php') . ': ' . $exc->getLine() . ": \n" .
+                                $exc->getCode() . ' ' . $exc->getMessage() . "\n";
+            }
+        }
         if (\function_exists('\\xdebug_get_collected_errors')) {
-            $errorsString = '';
             $xdebugErrors = \xdebug_get_collected_errors(true);
             foreach ($xdebugErrors as $error) {
                 $errorsString .= $error;
             }
-            if ($errorsString !== '') {
-                $tmpl->setVar('wantDiag', true);
-                $tmpl->setVar('errorsString', $errorsString);
-            }
             \xdebug_stop_error_collection();
+        }
+        if ($errorsString !== '') {
+            $tmpl->setVar('wantDiag', true);
+            $tmpl->setVar('errorsString', $errorsString);
         }
     }
     
@@ -678,7 +705,9 @@ protected function getScanResult($sqlstr, $entry = NULL, $exact = true, $isNumbe
     if ($result !== FALSE) {
         $numberOfRecords = $result->num_rows;
 
+        ErrorOrWarningException::$code_has_known_errors = true;
         $tmpl = new vlibTemplate($this->scanTemplateFilename);
+        ErrorOrWarningException::$code_has_known_errors = false;
 
         $terms = new \SplFixedArray($result->num_rows);
         $i = 0;
@@ -726,6 +755,9 @@ protected function getScanResult($sqlstr, $entry = NULL, $exact = true, $isNumbe
         $position = $startPosition;
         $shortList = array();
         while ($position < min($maximumTerms + $startPosition, count($sortedTerms))){
+            $sortedTerms[$position]['value'] = htmlentities($sortedTerms[$position]['value'], ENT_XML1);
+            if (isset($sortedTerms[$position]['displayTerm']))
+                $sortedTerms[$position]['displayTerm'] = htmlentities($sortedTerms[$position]['displayTerm'], ENT_XML1);
             array_push($shortList, $sortedTerms[$position]);
             $shortList[$position]["position"] = $position + 1;
             $position++;
@@ -742,7 +774,10 @@ protected function getScanResult($sqlstr, $entry = NULL, $exact = true, $isNumbe
         $tmpl->setVar('maximumTerms', $maximumTerms);
         $this->addXDebugErrorsIfExist($tmpl);
 
-        return $tmpl->grab();
+        ErrorOrWarningException::$code_has_known_errors = true;
+        $ret = $tmpl->grab();
+        ErrorOrWarningException::$code_has_known_errors = false;
+        return $ret;
     } else {
         $this->errorDiagnostics = new SRUdiagnostics(1, 'MySQL query error: Query was: ' . $sqlstr);
         return '';
@@ -874,7 +909,7 @@ public function get_search_term_for_wildcard_search($index, $queryString, $index
     } else {
         $ret = preg_filter('/' . $index . ' *(=|any) *(.*)/', '$2', $queryString);
     }
-    return $this->encodecharrefs($ret);
+    return $ret;
 }
 
 /**
@@ -898,7 +933,7 @@ public function get_search_term_for_exact_search($index, $queryString, $index_co
     } else {
         $ret = preg_filter('/' . $index . ' *(==|(cql\.)?string) *(.*)/', '$3', $queryString);
     }
-    return $this->encodecharrefs($ret);
+    return $ret;
 }
 
 /**

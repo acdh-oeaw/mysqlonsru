@@ -17,6 +17,7 @@
 namespace ACDH\FCSSRU\mysqlonsru;
 
 use ACDH\FCSSRU\mysqlonsru\SRUFromMysqlBase,
+    ACDH\FCSSRU\ErrorOrWarningException,
     ACDH\FCSSRU\SRUDiagnostics,
     ACDH\FCSSRU\SRUWithFCSParameters,
     ACDH\FCSSRU\Http\Response,
@@ -321,7 +322,12 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
     $xmlcode = str_replace("\n\n", "\n", $this->decodecharrefs($line[1]));
 
     $doc = new \DOMDocument();
-    $doc->loadXML($xmlcode);
+    
+    try {
+       $doc->loadXML($xmlcode);    
+    } catch (ErrorOrWarningException $exc) {
+       array_push($this->errors_array, $exc);
+    }
 
     $xpath = new \DOMXpath($doc);
     $elements = $xpath->query("//ptr[@type='example' or @type='multiWordUnit']");
@@ -386,13 +392,16 @@ class glossarySearchResultComparator extends searchResultComparator {
      * 
      * @param array $a An array with a 'content' field
      * @param array $b An array with a 'content' field
+     *  https://bugs.php.net/bug.php?id=50688 exception may not be used!
      */
     public function sortSearchResult($a, $b) {
         $xmla = new \DOMDocument;
+        ErrorOrWarningException::$code_has_known_errors = true;
         $xmla->loadXML($a['content']);
         $xmlaXPath = new \DOMXPath($xmla);
         $xmlb = new \DOMDocument;
         $xmlb->loadXML($b['content']);
+        ErrorOrWarningException::$code_has_known_errors = false;
         $xmlbXPath = new \DOMXPath($xmlb);
         $similarityA = 1;
         $similarityB = 1;

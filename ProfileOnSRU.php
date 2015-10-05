@@ -42,11 +42,11 @@ public function populateSampleTextResult($escapedQueryString, $db, $region) {
 }
 
 public function getLemmaWhereClause($query) {
-    return "WHERE lemma LIKE '%" . $this->encodecharrefs($query) . "%'";
+    return "WHERE lemma LIKE '%" . $this->encodecharrefs($query) . "%' OR lemma LIKE '%$query%'";
 }
 
 public function getLemmaWhereClauseExact($query) {
-    return "WHERE lemma = '" . $this->encodecharrefs($query) . "'";
+    return "WHERE lemma = '" . $this->encodecharrefs($query) . "' OR lemma = '$query'";
 }
 
 public function sampleTextQuery($query) {
@@ -59,7 +59,12 @@ public function sampleTextQuery($query) {
     $xmlcode = str_replace("\n\n", "\n", $this->decodecharrefs($line[1]));
 
     $doc = new \DOMDocument();
-    $doc->loadXML($xmlcode);
+    
+    try {
+        $doc->loadXML($xmlcode);    
+    } catch (Exception $exc) {
+        array_push($this->errors_array, $exc);
+    }
 
     $xpath = new \DOMXpath($doc);
     $teiHeader = $xpath->query("//teiHeader");
