@@ -36,6 +36,7 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
         "apc_eng_002",
         "aeb_eng_001__v001",
         "ar_de__v001",
+        "pes_eng_032",
     );
 
     protected $options = array(

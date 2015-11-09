@@ -245,7 +245,7 @@ public function sqlForXPath($table, $xpath, $options = NULL) {
         }
 
         $indexTable = "(SELECT ndx.id, ndx.txt FROM " . $tableOrPrefilter .
-                " AS ndx WHERE ". $this->_and($query, $this->_and($filter, $likeXpath)).
+                " AS ndx WHERE ". $this->_and($query, $this->_and($filter, $likeXpath)). 
                 // There seems no point in reporting all id + txt if the query did match a lot of txt
                 'GROUP BY ndx.id)';
         // base
