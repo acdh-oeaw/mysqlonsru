@@ -247,7 +247,7 @@ public function sqlForXPath($table, $xpath, $options = NULL) {
         $indexTable = "(SELECT ndx.id, ndx.txt FROM " . $tableOrPrefilter .
                 " AS ndx WHERE ". $this->_and($query, $this->_and($filter, $likeXpath)).
                 // There seems no point in reporting all id + txt if the query did match a lot of txt
-                ')';
+                'GROUP BY ndx.id)';
         // base
         if (isset($options["show-lemma"]) && $options["show-lemma"] === true) {
             $lemma = ", base.lemma";
@@ -273,10 +273,46 @@ public function sqlForXPath($table, $xpath, $options = NULL) {
             }
         }
     }
+		if (strpos($q,'==')===false) {
+			$operator = "=";
+			} else {
+				$operator = "==";
+				}
+				
+		$queryparts = explode($operator,$q);
+		if ($operator == "=") {
+			$queryterm = "'%".$queryparts[1]."%'";
+		} else if ($operator == "==") {
+			$queryterm = "'".$queryparts[1]."'";
+			}
+		
+		if ($queryparts[0] == "lemma") {
+			$querytemplate = "\"//form[@type='lemma']/orth[1]\"";
+		} else if ($queryparts[0] == "pos") {
+			$querytemplate = "\"//gramGrp/gram[@type='pos']\"";
+		} else if ($queryparts[0] == "senses") {
+			$querytemplate = "\"//sense/cit/quote\"";
+		} else if ($queryparts[0] == "inflected") {
+			$querytemplate = "\"//form[@type='inflected']/orth[1]\"";
+		}
+		
+		
+	
+	/* not working right now, because entry for profile seems to be to big for extractvalue */
+	/*$querytemplate = "(SELECT extractvalue(entry,'//queryTemplates/$queryparts[0]') FROM ".$table." where id = 9)"; *\
+
+	
+	
+	
+	
+	/*
     return "SELECT" . ($justCount ? " COUNT(*) " : " ndx.txt, base.entry, base.sid" . $lemma . $groupCount) .
             " FROM " . $table . " AS base " .
-            "INNER JOIN " . $indexTable . " AS ndx ON base.id = ndx.id " .
-            $groupAndLimit;            
+            "INNER JOIN " . $indexTable . " AS ndx ON base.id = ndx.id WHERE ndx.id > 700 " .
+            $groupAndLimit;     */
+return "SELECT COUNT(*), base.entry,base.sid FROM " . $table . " as base where  extractvalue(entry,".$querytemplate.") like ".$queryterm.$groupAndLimit;
+
+			
 }
 
 protected function genereatePrefilterSql($table, $options) {
@@ -534,11 +570,11 @@ protected function getSearchResult($sql, $description, $comparatorFactory = NULL
     
     $result = $this->db->query($sql);
     if ($result !== FALSE) {
-        if ($extraCountSql !== false) {
+     if ($extraCountSql !== false) {
             $numberOfRecords = $extraCountSql;
         } else {
             $numberOfRecords = $result->num_rows;
-        }
+       }
 
         ErrorOrWarningException::$code_has_known_errors = true;
         $tmpl = new vlibTemplate($responseTemplate);
