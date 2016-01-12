@@ -226,15 +226,15 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
     }
 
     private function addReleasedFilter() {
-        $relseasedXPathFilter = array(
+        $releasedXPathFilter = array(
                 "-change-f-status-" => "released",
             );
         if (in_array($this->params->context[0], $this->restrictedGlossaries)) {
             if (isset($this->options["xpath-filters"])) {
             $this->options["xpath-filters"] = array_merge($this->options["xpath-filters"],
-            $relseasedXPathFilter);            
+            $releasedXPathFilter);            
             } else {
-                $this->options["xpath-filters"] = $relseasedXPathFilter;  
+                $this->options["xpath-filters"] = $releasedXPathFilter;  
             }
         }
     }

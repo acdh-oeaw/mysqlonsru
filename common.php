@@ -273,7 +273,7 @@ public function sqlForXPath($table, $xpath, $options = NULL) {
             }
         }
     }
-		if (strpos($q,'==')===false) {
+	if (strpos($q,'==')===false) {
 			$operator = "=";
 			} else {
 				$operator = "==";
@@ -287,14 +287,15 @@ public function sqlForXPath($table, $xpath, $options = NULL) {
 			}
 		
 		if ($queryparts[0] == "lemma") {
-			$querytemplate = "\"//form[@type='lemma']/orth[1]\"";
+		$querytemplate = "extractvalue(entry,\"entry/form[@type='lemma' or @type='multiUnitWord']/orth[1]\") OR extractvalue(entry,\"entry/form[@type='lemma' or @type='multiUnitWord']/orth[2]\")";
+			//$querytemplate = "SELECT extractvalue(entry,'//lemma') FROM $table where ID = 30";
 		} else if ($queryparts[0] == "pos") {
-			$querytemplate = "\"//gramGrp/gram[@type='pos']\"";
+			$querytemplate = "extractvalue(entry,\"//gramGrp/gram[@type='pos']\")";
 		} else if ($queryparts[0] == "senses") {
-			$querytemplate = "\"//sense/cit/quote\"";
+			$querytemplate = "extractvalue(entry,\"//sense/cit[@xml:lang='en']/quote|//wkp:sense/wkp:cit[@xml:lang='en']/wkp:quote\")";
 		} else if ($queryparts[0] == "inflected") {
-			$querytemplate = "\"//form[@type='inflected']/orth[1]\"";
-		}
+			$querytemplate = "extractvalue(entry,\"entry/form[@type='inflected']/orth[1]\") OR extractvalue(entry,\"entry/form[@type='inflected']/orth[2]\")";
+		} 
 		
 		
 	
@@ -310,9 +311,8 @@ public function sqlForXPath($table, $xpath, $options = NULL) {
             " FROM " . $table . " AS base " .
             "INNER JOIN " . $indexTable . " AS ndx ON base.id = ndx.id WHERE ndx.id > 700 " .
             $groupAndLimit;     */
-return "SELECT COUNT(*), base.entry,base.sid FROM " . $table . " as base where  extractvalue(entry,".$querytemplate.") like ".$queryterm.$groupAndLimit;
-
-			
+return //"SELECT COUNT(*), base.entry,base.sid FROM " . $table . " as base where base.entry like '%released%' AND extractvalue(entry,(".$querytemplate.")) like ".$queryterm.$groupAndLimit;  
+"SELECT COUNT(*), base.entry,base.sid FROM " . $table . " as base where base.entry like '%released%' AND (".$querytemplate. " like ".$queryterm.")".$groupAndLimit;         
 }
 
 protected function genereatePrefilterSql($table, $options) {
