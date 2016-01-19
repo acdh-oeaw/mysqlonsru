@@ -312,7 +312,7 @@ public function sqlForXPath($table, $xpath, $options = NULL) {
             "INNER JOIN " . $indexTable . " AS ndx ON base.id = ndx.id WHERE ndx.id > 700 " .
             $groupAndLimit;     */
 return //"SELECT COUNT(*), base.entry,base.sid FROM " . $table . " as base where base.entry like '%released%' AND extractvalue(entry,(".$querytemplate.")) like ".$queryterm.$groupAndLimit;  
-"SELECT COUNT(*), base.entry,base.sid FROM " . $table . " as base where base.entry like '%released%' AND (".$querytemplate. " like ".$queryterm.")".$groupAndLimit;         
+"SELECT SQL_CALC_FOUND_ROWS COUNT(*), base.entry,base.sid FROM "  . $table . " as base where base.entry like '%released%' AND (".$querytemplate. " like ".$queryterm.")".$groupAndLimit;         
 }
 
 protected function genereatePrefilterSql($table, $options) {
@@ -550,7 +550,11 @@ protected function getSearchResult($sql, $description, $comparatorFactory = NULL
         if ($wantMetadata || $wantTitle) {
             $dbTeiHeaderXML = $this->getMetadataAsXML($options['dbtable']);
         }
-        if (isset($options["maximumRecords"])) {
+        
+        
+        
+     /*   if (isset($options["maximumRecords"])) {
+           
             $options["startRecord"] = NULL;
             $options["maximumRecords"] = NULL;
             $options["justCount"] = true;
@@ -560,7 +564,11 @@ protected function getSearchResult($sql, $description, $comparatorFactory = NULL
                 $line = $result->fetch_row();
                 $extraCountSql = $line[0];
             }
-        }
+
+            }*/
+        
+        
+        
     } else if ($wantMetadata || $wantTitle) {
         $dbtable = preg_filter('/.* FROM (\\w+) .*/', '$1', $sql);
         if ($dbtable !== false) {
@@ -569,12 +577,17 @@ protected function getSearchResult($sql, $description, $comparatorFactory = NULL
     }
     
     $result = $this->db->query($sql);
+   
     if ($result !== FALSE) {
-     if ($extraCountSql !== false) {
-            $numberOfRecords = $extraCountSql;
-        } else {
-            $numberOfRecords = $result->num_rows;
-       }
+         $numberOfRecords =     $this->db->query("SELECT FOUND_ROWS()");
+         $numberOfRecords = $numberOfRecords->fetch_row();
+         $numberOfRecords = $numberOfRecords[0];
+    if ($extraCountSql !== false) {
+          // $numberOfRecords = $extraCountSql;
+          } else {
+           // $numberOfRecords = $result->num_rows;
+       //  $numberOfRecords =     $this->db->query("SELECT FOUND_ROWS()");
+         }
 
         ErrorOrWarningException::$code_has_known_errors = true;
         $tmpl = new vlibTemplate($responseTemplate);
