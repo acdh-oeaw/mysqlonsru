@@ -287,7 +287,7 @@ public function sqlForXPath($table, $xpath, $options = NULL) {
 			}
 		
 		if ($queryparts[0] == "lemma") {
-		$querytemplate = "extractvalue(entry,\"entry/form[@type='lemma' or @type='multiUnitWord']/orth[1]\") OR extractvalue(entry,\"entry/form[@type='lemma' or @type='multiUnitWord']/orth[2]\")";
+		$querytemplate = "extractvalue(entry,\"entry/form[@type='lemma' or @type='multiUnitWord']/orth[@xml:lang='fa-Arab']\") OR extractvalue(entry,\"entry/form[@type='lemma' or @type='multiUnitWord']/orth[@xml:lang='fa-x-modDMG']\")";
 			//$querytemplate = "SELECT extractvalue(entry,'//lemma') FROM $table where ID = 30";
 		} else if ($queryparts[0] == "pos") {
 			$querytemplate = "extractvalue(entry,\"//gramGrp/gram[@type='pos']\")";
