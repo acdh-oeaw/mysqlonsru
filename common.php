@@ -156,7 +156,7 @@ protected function encodecharrefs($str) {
 
 protected function _or($string1, $string2) {
     if (($string1 !== "") and ($string2 !== "")) {
-        return ("($string1) OR ($string2)");
+        return ("($string1 OR $string2)");
     } else if ($string2 !== "") {
         return $string2;
     } else {
@@ -166,7 +166,7 @@ protected function _or($string1, $string2) {
 
 protected function _and($string1, $string2) {
     if (($string1 !== "") and ($string2 !== "")) {
-        return ("($string1) AND ($string2)");
+        return ("($string1 AND $string2)");
     } else if ($string2 !== "") {
         return $string2;
     } else {
@@ -238,9 +238,9 @@ public function sqlForXPath($table, $xpath, $options = NULL) {
             $q = $options["query"];
             $qEnc = $this->encodecharrefs($q);
             if (isset($options["exact"]) && $options["exact"] === true) {
-               $query .= "ndx.txt = '$q' OR ndx.txt = '$qEnc' ";
+               $query .= "(ndx.txt = '$q' OR ndx.txt = '$qEnc') ";
             } elseif ($q !== '') {
-               $query .= "ndx.txt LIKE '%$q%' OR ndx.txt LIKE '%$qEnc%' ";
+               $query .= "(ndx.txt LIKE '%$q%' OR ndx.txt LIKE '%$qEnc%') ";
             } else {
                $query .= "ndx.txt LIKE '%' ";
             }
