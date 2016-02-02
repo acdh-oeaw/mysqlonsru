@@ -289,7 +289,7 @@ public function sqlForXPath($table, $xpath, $options = NULL) {
         }
 
         if ($queryparts[0] == "lemma") {
-            $querytemplate = "extractvalue(entry,\"entry/form[@type='lemma' or @type='multiUnitWord']/orth[1]\") OR extractvalue(entry,\"entry/form[@type='lemma' or @type='multiUnitWord']/orth[2]\")";
+		$querytemplate = "extractvalue(entry,\"entry/form[@type='lemma' or @type='multiUnitWord']/orth[@xml:lang='fa-Arab']\") OR extractvalue(entry,\"entry/form[@type='lemma' or @type='multiUnitWord']/orth[@xml:lang='fa-x-modDMG']\")";
             //$querytemplate = "SELECT extractvalue(entry,'//lemma') FROM $table where ID = 30";
         } else if ($queryparts[0] == "pos") {
             $querytemplate = "extractvalue(entry,\"//gramGrp/gram[@type='pos']\")";
@@ -545,7 +545,11 @@ protected function getSearchResult($sql, $description, $comparatorFactory = NULL
         if ($wantMetadata || $wantTitle) {
             $dbTeiHeaderXML = $this->getMetadataAsXML($options['dbtable']);
         }
-        if (isset($options["maximumRecords"])) {
+        
+        
+        
+     /*   if (isset($options["maximumRecords"])) {
+           
             $options["startRecord"] = NULL;
             $options["maximumRecords"] = NULL;
             $options["justCount"] = true;
@@ -555,7 +559,11 @@ protected function getSearchResult($sql, $description, $comparatorFactory = NULL
                 $line = $result->fetch_row();
                 $extraCountSql = $line[0];
             }
-        }
+
+            }*/
+        
+        
+        
     } else if ($wantMetadata || $wantTitle) {
         $dbtable = preg_filter('/.* FROM (\\w+) .*/', '$1', $sql);
         if ($dbtable !== false) {
@@ -564,11 +572,16 @@ protected function getSearchResult($sql, $description, $comparatorFactory = NULL
     }
     
     $result = $this->db->query($sql);
+   
     if ($result !== FALSE) {
+         $numberOfRecords =     $this->db->query("SELECT FOUND_ROWS()");
+         $numberOfRecords = $numberOfRecords->fetch_row();
+         $numberOfRecords = $numberOfRecords[0];
      if ($extraCountSql !== false) {
-            $numberOfRecords = $extraCountSql;
+          // $numberOfRecords = $extraCountSql;
         } else {
-            $numberOfRecords = $result->num_rows;
+           // $numberOfRecords = $result->num_rows;
+       //  $numberOfRecords =     $this->db->query("SELECT FOUND_ROWS()");
        }
 
         ErrorOrWarningException::$code_has_known_errors = true;
