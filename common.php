@@ -238,9 +238,11 @@ public function sqlForXPath($table, $xpath, $options = NULL) {
             $q = $options["query"];
             $qEnc = $this->encodecharrefs($q);
             if (isset($options["exact"]) && $options["exact"] === true) {
-               $query .= "ndx.txt = '$q' OR ndx.txt = '$qEnc'";
+               $query .= "ndx.txt = '$q' OR ndx.txt = '$qEnc' ";
+            } elseif ($q !== '') {
+               $query .= "ndx.txt LIKE '%$q%' OR ndx.txt LIKE '%$qEnc%' ";
             } else {
-               $query .= "ndx.txt LIKE '%$q%' OR ndx.txt LIKE '%$qEnc%'";
+               $query .= "ndx.txt LIKE '%' ";
             }
         }
 
@@ -273,46 +275,39 @@ public function sqlForXPath($table, $xpath, $options = NULL) {
             }
         }
     }
-	if (strpos($q,'==')===false) {
-			$operator = "=";
-			} else {
-				$operator = "==";
-				}
-				
-		$queryparts = explode($operator,$q);
-		if ($operator == "=") {
-			$queryterm = "'%".$queryparts[1]."%'";
-		} else if ($operator == "==") {
-			$queryterm = "'".$queryparts[1]."'";
-			}
-		
-		if ($queryparts[0] == "lemma") {
-		$querytemplate = "extractvalue(entry,\"entry/form[@type='lemma' or @type='multiUnitWord']/orth[1]\") OR extractvalue(entry,\"entry/form[@type='lemma' or @type='multiUnitWord']/orth[2]\")";
-			//$querytemplate = "SELECT extractvalue(entry,'//lemma') FROM $table where ID = 30";
-		} else if ($queryparts[0] == "pos") {
-			$querytemplate = "extractvalue(entry,\"//gramGrp/gram[@type='pos']\")";
-		} else if ($queryparts[0] == "senses") {
-			$querytemplate = "extractvalue(entry,\"//sense/cit[@xml:lang='en']/quote|//wkp:sense/wkp:cit[@xml:lang='en']/wkp:quote\")";
-		} else if ($queryparts[0] == "inflected") {
-			$querytemplate = "extractvalue(entry,\"entry/form[@type='inflected']/orth[1]\") OR extractvalue(entry,\"entry/form[@type='inflected']/orth[2]\")";
-		} 
-		
-		
-	
-	/* not working right now, because entry for profile seems to be to big for extractvalue */
-	/*$querytemplate = "(SELECT extractvalue(entry,'//queryTemplates/$queryparts[0]') FROM ".$table." where id = 9)"; *\
+/*	if (strpos($q, '==') === false) {
+            $operator = "=";
+        } else {
+            $operator = "==";
+        }
 
-	
-	
-	
-	
-	/*
+        $queryparts = explode($operator, $q);
+        if ($operator == "=") {
+            $queryterm = "'%" . $queryparts[1] . "%'";
+        } else if ($operator == "==") {
+            $queryterm = "'" . $queryparts[1] . "'";
+        }
+
+        if ($queryparts[0] == "lemma") {
+            $querytemplate = "extractvalue(entry,\"entry/form[@type='lemma' or @type='multiUnitWord']/orth[1]\") OR extractvalue(entry,\"entry/form[@type='lemma' or @type='multiUnitWord']/orth[2]\")";
+            //$querytemplate = "SELECT extractvalue(entry,'//lemma') FROM $table where ID = 30";
+        } else if ($queryparts[0] == "pos") {
+            $querytemplate = "extractvalue(entry,\"//gramGrp/gram[@type='pos']\")";
+        } else if ($queryparts[0] == "senses") {
+            $querytemplate = "extractvalue(entry,\"//sense/cit[@xml:lang='en']/quote|//wkp:sense/wkp:cit[@xml:lang='en']/wkp:quote\")";
+        } else if ($queryparts[0] == "inflected") {
+            $querytemplate = "extractvalue(entry,\"entry/form[@type='inflected']/orth[1]\") OR extractvalue(entry,\"entry/form[@type='inflected']/orth[2]\")";
+        }
+
+        /* not working right now, because entry for profile seems to be to big for extractvalue */
+	/*$querytemplate = "(SELECT extractvalue(entry,'//queryTemplates/$queryparts[0]') FROM ".$table." where id = 9)"; *\	
+	/* */
     return "SELECT" . ($justCount ? " COUNT(*) " : " ndx.txt, base.entry, base.sid" . $lemma . $groupCount) .
             " FROM " . $table . " AS base " .
-            "INNER JOIN " . $indexTable . " AS ndx ON base.id = ndx.id WHERE ndx.id > 700 " .
-            $groupAndLimit;     */
-return //"SELECT COUNT(*), base.entry,base.sid FROM " . $table . " as base where base.entry like '%released%' AND extractvalue(entry,(".$querytemplate.")) like ".$queryterm.$groupAndLimit;  
-"SELECT COUNT(*), base.entry,base.sid FROM " . $table . " as base where base.entry like '%released%' AND (".$querytemplate. " like ".$queryterm.")".$groupAndLimit;         
+            "INNER JOIN " . $indexTable . " AS ndx ON base.id = ndx.id WHERE ndx.id > 700" .
+            $groupAndLimit;  
+/*return //"SELECT COUNT(*), base.entry,base.sid FROM " . $table . " as base where base.entry like '%released%' AND extractvalue(entry,(".$querytemplate.")) like ".$queryterm.$groupAndLimit;  
+"SELECT COUNT(*), base.entry,base.sid FROM " . $table . " as base where base.entry like '%released%' AND (".$querytemplate. " like ".$queryterm.")".$groupAndLimit;         */
 }
 
 protected function genereatePrefilterSql($table, $options) {
