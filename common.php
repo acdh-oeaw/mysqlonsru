@@ -528,12 +528,12 @@ protected function getTEIDataAsXMLQueryObject($xmlText) {
 
 protected function getSearchResult($sql, $description, $comparatorFactory = NULL) {
     if ($this->responseTemplateFilename === '') {
-        global $responseTemplate;
-        $this->responseTemplateFilename = $responseTemplate; 
+            global $responseTemplate;
+            $this->responseTemplateFilename = $responseTemplate;
     }
-    
+
     $baseURL = $this->curPageURL();
-    
+
     $dbTeiHeaderXML = null;
     $wantTitle = (stripos($this->params->xdataview, 'title') !== false);
     $wantMetadata = (stripos($this->params->xdataview, 'metadata') !== false);
@@ -545,24 +545,19 @@ protected function getSearchResult($sql, $description, $comparatorFactory = NULL
         if ($wantMetadata || $wantTitle) {
             $dbTeiHeaderXML = $this->getMetadataAsXML($options['dbtable']);
         }
-        
-        
-        
-     /*   if (isset($options["maximumRecords"])) {
-           
-            $options["startRecord"] = NULL;
-            $options["maximumRecords"] = NULL;
-            $options["justCount"] = true;
-            $countSql = $this->sqlForXPath("", "", $options);
-            $result = $this->db->query($countSql);
-            if ($result !== false) {
-                $line = $result->fetch_row();
-                $extraCountSql = $line[0];
-            }
 
-            }*/
-        
-        
+        if (isset($options["maximumRecords"])) {
+
+                $options["startRecord"] = NULL;
+                $options["maximumRecords"] = NULL;
+                $options["justCount"] = true;
+                $countSql = $this->sqlForXPath("", "", $options);
+                $result = $this->db->query($countSql);
+                if ($result !== false) {
+                    $line = $result->fetch_row();
+                    $extraCountSql = $line[0];
+                }
+        }
         
     } else if ($wantMetadata || $wantTitle) {
         $dbtable = preg_filter('/.* FROM (\\w+) .*/', '$1', $sql);
