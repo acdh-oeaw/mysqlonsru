@@ -991,6 +991,22 @@ protected function get_wild_card_search($input) {
     }
     return $ret;
 }
+
+
+/**
+ * Tries to find the index, operator and searchString (start string for scan) in
+ * either the query parameter or the scanClause parameter.
+ * @return array An array that has all the groups found by preg_match. The
+ *               index, operator and searchString found are contained as 
+ *               key value pairs.
+ */
+protected function findCQLParts() {
+    $cqlIdentifier = '("([^"])*")|([^\s()=<>"\/]*)';
+    $matches = array();
+    $regexp = '/(?<index>'.$cqlIdentifier.') *(?<operator>(==?)|(>=?)|(<=?)|('.$cqlIdentifier.')) *(?<searchString>'.$cqlIdentifier.')/';
+    preg_match($regexp, $this->params->query !== '' ? $this->params->query : $this->params->scanClause, $matches);
+    return $matches;
+}
 }
 class comparatorFactory {
     
