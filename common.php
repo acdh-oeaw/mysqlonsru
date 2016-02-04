@@ -1005,6 +1005,9 @@ protected function findCQLParts() {
     $matches = array();
     $regexp = '/(?<index>'.$cqlIdentifier.') *(?<operator>(==?)|(>=?)|(<=?)|('.$cqlIdentifier.')) *(?<searchString>'.$cqlIdentifier.')/';
     preg_match($regexp, $this->params->query !== '' ? $this->params->query : $this->params->scanClause, $matches);
+    $matches['index'] = trim($matches['index'], '"');
+    $matches['operator'] = trim($matches['operator'], '"');
+    $matches['searchString'] = trim($matches['searchString'], '"');
     return $matches;
 }
 }

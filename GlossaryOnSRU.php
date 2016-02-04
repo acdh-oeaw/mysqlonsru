@@ -45,21 +45,14 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
         "distinct-values" => true,
         "query" => "", // the database can't sort or filter due to encoding
     );
+    
+    protected $indexNames = array();
+    protected $serverChoiceIndexNames = array('', 'serverChoice', 'cql.serverChoice');
+    protected $serverChoiceIndex;
             
     public function __construct(SRUWithFCSParameters $params = null) {
         parent::__construct($params);
         $this->extendedSearchResultProcessing = true;
-    }
-
-    /**
-     * Generates a response according to ZeeRex
-     * 
-     * This is a machine readable description of this script's capabilities.
-     * 
-     * @see http://zeerex.z3950.org/overview/index.html
-     * 
-     */
-    public function explain() {
 
         if ($this->params->context[0] === '') {
             return new SRUDiagnostics(1, 'This script needs to know which resource to use!');
@@ -77,6 +70,8 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
             'search' => 'true',
             'scan' => 'true',
             'sort' => 'false',
+            'filter' => '',
+            'isServerChoice' => true
         ));
 
         array_push($this->indices, array(
@@ -85,14 +80,33 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
             'search' => 'true',
             'scan' => 'true',
             'sort' => 'false',
+            'filter' => '-quote-'
         ));
-
+        
+        foreach (array(
+            'en' => "VICAV $langId - $transLangId translated english sense",
+            'de' => "VICAV $langId - $transLangId Übersetzung deutsch",
+            'es' => "VICAV $langId - $transLangId translated spanish sense",
+            'fr' => "VICAV $langId - $transLangId translated french sense",                 
+        ) as $lang => $description) {
+            array_push($this->indices, array(
+                'title' => $description,
+                'name' => "sense-$lang",
+                'search' => 'true',
+                'scan' => 'true',
+                'sort' => 'false',
+                'filter' => "-translation-$lang-quote-"
+            ));
+        }
+        
         array_push($this->indices, array(
             'title' => "Language Course $langId - $transLangId unit",
             'name' => 'unit',
             'search' => 'true',
             'scan' => 'true',
             'sort' => 'false',
+            'exactOnly' => true,
+            'filter' => '-bibl-%Course-',
         ));
 
         array_push($this->indices, array(
@@ -101,6 +115,9 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
             'search' => 'true',
             'scan' => 'true',
             'sort' => 'false',
+            'exactOnly' => 'true',
+            'sqlStrScan' => "SELECT id, entry, sid FROM $glossTable ORDER BY CAST(id AS SIGNED)",
+            'sqlStrSearch' => "SELECT id, entry, sid, 1 FROM $glossTable WHERE id='?'",
         ));
 
         array_push($this->indices, array(
@@ -109,11 +126,34 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
             'search' => 'true',
             'scan' => 'true',
             'sort' => 'false',
+            'exactOnly' => true,
+            'filter' => '-xml:id',
+            'sqlStrSearch' => "SELECT sid, entry, id, 1 FROM $glossTable WHERE sid='?'",
         ));
+        
+        $this->indexNames = array_merge($this->indexNames, $this->serverChoiceIndexNames);
+        
+        foreach ($this->indices as $indexDescription) {
+            array_push($this->indexNames, $indexDescription['name']);
+            if (isset($indexDescription['isServerChoice']) && 
+                ($indexDescription['isServerChoice'] === true)) {
+                $this->serverChoiceIndex = $indexDescription;
+            } 
+        }
+    }
 
+    /**
+     * Generates a response according to ZeeRex
+     * 
+     * This is a machine readable description of this script's capabilities.
+     * 
+     * @see http://zeerex.z3950.org/overview/index.html
+     * 
+     */
+    public function explain() {
         $ret = new Response();
         $ret->getHeaders()->addHeaders(array('content-type' => 'text/xml'));
-        $ret->setContent($this->getExplainResult($glossTable, $glossTable));
+        $ret->setContent($this->getExplainResult($this->params->context[0], $this->params->context[0]));
         return $ret;
     }
 
@@ -129,6 +169,18 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
         }
         return $langId;
     }
+    
+    protected function getIndexDescription($splittetSearchClause) {       
+        $indexDescription = null;
+        if (in_array($splittetSearchClause['index'], $this->serverChoiceIndexNames)) {
+            $indexDescription = $this->serverChoiceIndex;
+        } else {
+            foreach ($this->indices as $indexDescription) {
+                if ($indexDescription['name'] === $splittetSearchClause['index']) {break;}
+            }
+        }
+        return $indexDescription;
+    }
 
     /**
      * Lists the entries from the lemma column in the database
@@ -143,77 +195,40 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
 
         $this->addReleasedFilter();
         
-        if ($this->params->scanClause === 'rfpid') {
-            $sqlstr = "SELECT id, entry, sid FROM $glossTable ORDER BY CAST(id AS SIGNED)";
+        $splittetSearchClause = $this->findCQLParts();
+        
+        if ($splittetSearchClause['index'] === '') { 
+            $splittetSearchClause['index'] = $this->params->scanClause;                    
+        }
+        
+        if (!in_array($splittetSearchClause['operator'], array('', '=', '==', '>=', 'exact', 'any'))) {
+           return new SRUdiagnostics(4, 'Operator: ' . $splittetSearchClause['operator']); 
+        }
+        
+        if (!in_array($splittetSearchClause['index'], $this->indexNames)) {
+           return new SRUdiagnostics(51, 'Result set: ' . $this->params->scanClause);
+        }
+        
+        $indexDescription = $this->getIndexDescription($splittetSearchClause);
+        
+        if (isset($indexDescription['sqlStrScan'])) {
+            $sqlstr = $indexDescription['sqlStrScan'];
             $scanClause = null;
             $exact = true;
             $isNumber = true;
         } else {
-            if ($this->params->scanClause === '' ||
-                    strpos($this->params->scanClause, 'entry') === 0 ||
-                    strpos($this->params->scanClause, 'serverChoice') === 0 ||
-                    strpos($this->params->scanClause, 'cql.serverChoice') === 0) {
-                $sqlstr = $this->sqlForXPath($glossTable, "", $this->options);
-            } else if (strpos($this->params->scanClause, 'sense') === 0) {
-                $sqlstr = $this->sqlForXPath($glossTable, "-quote-", $this->options);
-            } else if (strpos($this->params->scanClause, 'unit') === 0) {
-                $sqlstr = $this->sqlForXPath($glossTable, "-bibl-%Course-", $this->options);
-            } else if (strpos($this->params->scanClause, 'xmlid') === 0) {
-                $sqlstr = $this->sqlForXPath($glossTable, "-xml:id", $this->options);
-            } else {
-                return new SRUdiagnostics(51, 'Result set: ' . $this->params->scanClause);
-            }
-
-            $lemma_query = $this->get_search_term_for_wildcard_search("entry", $this->params->scanClause);
-            if (!isset($lemma_query)) {
-                $lemma_query = $this->get_search_term_for_wildcard_search("serverChoice", $this->params->scanClause, "cql");
-            }
-            $lemma_query_exact = $this->get_search_term_for_exact_search("entry", $this->params->scanClause);
-            if (!isset($lemma_query_exact)) {
-                $lemma_query_exact = $this->get_search_term_for_exact_search("serverChoice", $this->params->scanClause, "cql");
-            }
-            $sense_query = $this->get_search_term_for_wildcard_search("sense", $this->params->scanClause);
-            $sense_query_exact = $this->get_search_term_for_exact_search("sense", $this->params->scanClause);
-            $unit_query = $this->get_search_term_for_wildcard_search("unit", $this->params->scanClause);
-            $unit_query_exact = $this->get_search_term_for_exact_search("unit", $this->params->scanClause);
-            if (!isset($unit_query_exact)) {
-                $unit_query_exact = $unit_query;
-            }
-            $xmlid_query = $this->get_search_term_for_wildcard_search("xmlid", $this->params->scanClause);
-            $xmlid_query_exact = $this->get_search_term_for_exact_search("xmlid", $this->params->scanClause);
-            if (!isset($unit_query_exact)) {
-                $xmlid_query_exact = $xmlid_query;
-            }
-
+            $sqlstr = $this->sqlForXPath($glossTable, $indexDescription['filter'], $this->options);
+//                $sqlstr = $this->sqlForXPath($glossTable, "-xml:id", $this->options);
             $isNumber = false;
             $exact = false;
-            $scanClause = ""; // a scan clause that is no index cannot be used.
-            if (isset($lemma_query_exact)) { // lemma query matches lemma query exact also!
-                $wildCardSearch = $this->get_wild_card_search($lemma_query_exact);
-                $scanClause = isset($wildCardSearch) ? $wildCardSearch : $lemma_query_exact;
+            if (isset($indexDescription['exactOnly']) && ($indexDescription['exactOnly'] === true)) {
                 $exact = true;
-            } else if (isset($lemma_query)) {
-                $wildCardSearch = $this->get_wild_card_search($lemma_query);
-                $scanClause = isset($wildCardSearch) ? $wildCardSearch : $lemma_query;
-                $exact = false;
-            } else if (isset($sense_query_exact)) { // sense query matches lemma query exact also!
-                $wildCardSearch = $this->get_wild_card_search($sense_query_exact);
-                $scanClause = isset($wildCardSearch) ? $wildCardSearch : $sense_query_exact;
-                $exact = true;               
-            } else if (isset($sense_query)) {
-                $wildCardSearch = $this->get_wild_card_search($sense_query);
-                $scanClause = isset($wildCardSearch) ? $wildCardSearch : $sense_query;
-                $exact = false;  
-            } else if (isset($unit_query_exact)) {
-                $wildCardSearch = $this->get_wild_card_search($unit_query_exact);
-                $scanClause = isset($wildCardSearch) ? $wildCardSearch : $unit_query_exact;
-                $exact = true;  
-            } else if (isset($xmlid_query_exact)) {
-                $wildCardSearch = $this->get_wild_card_search($xmlid_query_exact);
-                $scanClause = isset($wildCardSearch) ? $wildCardSearch : $xmlid_query_exact;
-                $exact = true;  
+            } else {
+                $exact = in_array($splittetSearchClause['operator'], array('==', 'exact')) ? true : false;
             }
+            $scanClause = ""; // a scan clause that is no index cannot be used.
         }
+
         $scanResult = $this->getScanResult($sqlstr, $scanClause, $exact, $isNumber);
         if ($scanResult !== '') {
             $ret = new Response();
@@ -244,66 +259,36 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
     public function search() {
         $glossTable = $this->params->context[0];
         // HACK, sql parser? cql.php = GPL -> this GPL too
-        $this->params->query = str_replace("\"", "", $this->params->query);
         $this->options = array_merge($this->options, array("distinct-values" => false,));
         $this->options["startRecord"] = $this->params->startRecord;
         $this->options["maximumRecords"] = $this->params->maximumRecords;
         $this->addReleasedFilter();
-        $lemma_query = $this->get_search_term_for_wildcard_search("entry", $this->params->query);
-        if (!isset($lemma_query)) {
-            $lemma_query = $this->get_search_term_for_wildcard_search("serverChoice", $this->params->query, "cql");
-        }
-        $lemma_query_exact = $this->get_search_term_for_exact_search("entry", $this->params->query);
-        if (!isset($lemma_query_exact)) {
-            $lemma_query_exact = $this->get_search_term_for_exact_search("serverChoice", $this->params->query, "cql");
-        }
-        $sense_query_exact = $this->get_search_term_for_exact_search("sense", $this->params->query);
-        $sense_query = $this->get_search_term_for_wildcard_search("sense", $this->params->query);
-
-        $unit_query = $this->get_search_term_for_wildcard_search("unit", $this->params->query);
-        $unit_query_exact = $this->get_search_term_for_exact_search("unit", $this->params->query);
-        if (!isset($unit_query_exact)) {
-            $unit_query_exact = $unit_query;
-        }
-
-        $rfpid_query = $this->get_search_term_for_wildcard_search("rfpid", $this->params->query);
-        $rfpid_query_exact = $this->get_search_term_for_exact_search("rfpid", $this->params->query);
-        if (!isset($rfpid_query_exact)) {
-            $rfpid_query_exact = $rfpid_query;
-        }
-
-        $xmlid_query = $this->get_search_term_for_wildcard_search("xmlid", $this->params->query);
-        $xmlid_query_exact = $this->get_search_term_for_exact_search("xmlid", $this->params->query);
-        if (!isset($xmlid_query_exact)) {
-            $xmlid_query_exact = $xmlid_query;
+        
+        $splittetSearchClause = $this->findCQLParts();
+               
+        if ($splittetSearchClause['searchString'] === '') { 
+            $splittetSearchClause['searchString'] = $this->params->query;
+            $splittetSearchClause['index'] = '';
         }
         
-        if (isset($rfpid_query_exact)) {
-            $query = $this->db->escape_string($rfpid_query_exact);
-            $searchResult = $this->getSearchResult("SELECT id, entry, sid, 1 FROM $glossTable WHERE id='$query'", "Resource Fragment for pid");
-        } else if (isset($xmlid_query_exact)) {
-            $query = $this->db->escape_string($xmlid_query_exact);
-            $searchResult = $this->getSearchResult("SELECT sid, entry, id, 1 FROM $glossTable WHERE sid='$query'", "XML ID");
+        if (!in_array($splittetSearchClause['operator'], array('', '=', '==', '>=', '>', '<', '<=', 'exact', 'any'))) {
+           return new SRUdiagnostics(4, 'Operator: ' . $splittetSearchClause['operator']); 
+        }
+        
+        if (!in_array($splittetSearchClause['index'], $this->indexNames)) {
+            return new SRUdiagnostics(51, 'Result set: ' . $this->params->query);
+        }
+        
+        $indexDescription = $this->getIndexDescription($splittetSearchClause);
+        
+        if (isset($indexDescription['sqlStrSearch'])) {
+            $query = $this->db->escape_string($splittetSearchClause['searchString']);
+            $searchResult = $this->getSearchResult(preg_replace('/\?/', $query, $indexDescription['sqlStrSearch']), $indexDescription['title']);
         } else {
-            if (isset($sense_query_exact)) {
-                $this->options["query"] = $this->db->escape_string($sense_query_exact);
-                $this->options["xpath"] = "-quote-";
-                $this->options["exact"] = true;
-            } else if (isset($sense_query)) {
-                $this->options["query"] = $this->db->escape_string($sense_query);
-                $this->options["xpath"] = "-quote-";
-            } else  if (isset($unit_query_exact)) {
-                $this->options["query"] = $this->db->escape_string($unit_query_exact);
-                $this->options["xpath"] = "-bibl-%Course-";
-                $this->options["exact"] = true;
-            } else if (isset($lemma_query_exact)) {
-                $this->options["query"] = $this->db->escape_string($lemma_query_exact);
-                $this->options["exact"] = true;
-            } else if (isset($lemma_query)) {
-                $this->options["query"] = $this->db->escape_string($lemma_query);
-            } else {
-                $this->options["query"] = $this->db->escape_string($this->params->query);
-            }
+            $this->options["query"] = $this->db->escape_string($splittetSearchClause['searchString']);
+            $this->options["xpath"] = $indexDescription['filter'];
+            $this->options["exact"] = in_array($splittetSearchClause['operator'], array('==', 'exact'))||
+                                      (isset($indexDescription['exactOnly']) && $indexDescription['exactOnly'] === true)? true : false;
             $this->options["dbtable"] = $glossTable;
 
             $searchResult = $this->getSearchResult($this->options, "Glossary for " . $this->options["query"], new glossaryComparatorFactory($this->options["query"]));
