@@ -95,7 +95,10 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
                 'search' => 'true',
                 'scan' => 'true',
                 'sort' => 'false',
-                'filter' => "-translation-$lang-quote-"
+                'filter' => "",
+                'xpath-filters' => array(
+                    "//cit[@xml:lang=\"$lang\"]//text()" => null
+                )
             ));
         }
         
@@ -189,12 +192,7 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
      * 
      * @see http://www.loc.gov/standards/sru/specs/scan.html
      */
-    public function scan() {
-        $glossTable = $this->params->context[0];
-        $sqlstr = '';
-
-        $this->addReleasedFilter();
-        
+    public function scan() {       
         $splittetSearchClause = $this->findCQLParts();
         
         if ($splittetSearchClause['index'] === '') { 
@@ -208,8 +206,16 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
         if (!in_array($splittetSearchClause['index'], $this->indexNames)) {
            return new SRUdiagnostics(51, 'Result set: ' . $this->params->scanClause);
         }
-        
         $indexDescription = $this->getIndexDescription($splittetSearchClause);
+        
+        $glossTable = $this->params->context[0];
+        $sqlstr = '';
+        
+        if (isset($indexDescription["xpath-filters"])) {
+           $this->options["xpath-filters"] = $indexDescription["xpath-filters"];
+        }
+        $this->addReleasedFilter();
+        
         
         if (isset($indexDescription['sqlStrScan'])) {
             $sqlstr = $indexDescription['sqlStrScan'];
@@ -257,12 +263,7 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
      * 
      */
     public function search() {
-        $glossTable = $this->params->context[0];
         // HACK, sql parser? cql.php = GPL -> this GPL too
-        $this->options = array_merge($this->options, array("distinct-values" => false,));
-        $this->options["startRecord"] = $this->params->startRecord;
-        $this->options["maximumRecords"] = $this->params->maximumRecords;
-        $this->addReleasedFilter();
         
         $splittetSearchClause = $this->findCQLParts();
                
@@ -280,6 +281,15 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
         }
         
         $indexDescription = $this->getIndexDescription($splittetSearchClause);
+        
+        $glossTable = $this->params->context[0];
+        $this->options = array_merge($this->options, array("distinct-values" => false,));
+        $this->options["startRecord"] = $this->params->startRecord;
+        $this->options["maximumRecords"] = $this->params->maximumRecords;
+        if (isset($indexDescription["xpath-filters"])) {
+           $this->options["xpath-filters"] = $indexDescription["xpath-filters"];
+        }
+        $this->addReleasedFilter();
         
         if (isset($indexDescription['sqlStrSearch'])) {
             $query = $this->db->escape_string($splittetSearchClause['searchString']);

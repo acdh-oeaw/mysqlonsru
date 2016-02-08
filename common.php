@@ -222,7 +222,7 @@ public function sqlForXPath($table, $xpath, $options = NULL) {
         // ndx search
         $indexTable = $table . "_ndx";
         if (isset($options["xpath-filters"])) {
-            $tableOrPrefilter = $this->genereatePrefilterSql($indexTable, $options);
+            $tableOrPrefilter = $this->genereatePrefilterSql($table, $options);
         } else {
             $tableOrPrefilter = $indexTable;
         }
@@ -233,6 +233,10 @@ public function sqlForXPath($table, $xpath, $options = NULL) {
             }
             $likeXpath = substr($likeXpath , 0, strrpos($likeXpath, ' OR '));
             $likeXpath .= ')';
+        }
+        if (isset($options["xpath-filters"]) and 
+            in_array(null, $options["xpath-filters"])) {
+            unset($options["query"]);           
         }
         if (isset($options["query"])) {
             $q = $options["query"];
@@ -245,9 +249,12 @@ public function sqlForXPath($table, $xpath, $options = NULL) {
                $query .= "ndx.txt LIKE '%' ";
             }
         }
+        
+        $indexTableWhereClause = "WHERE ". $this->_and($query, $this->_and($filter, $likeXpath));
+        $indexTableWhereClause = ($indexTableWhereClause === "WHERE ") ? '' : $indexTableWhereClause;
 
         $indexTable = "(SELECT ndx.id, ndx.txt FROM " . $tableOrPrefilter .
-                " AS ndx WHERE ". $this->_and($query, $this->_and($filter, $likeXpath)). 
+                " AS ndx $indexTableWhereClause". 
                 // There seems no point in reporting all id + txt if the query did match a lot of txt
                 'GROUP BY ndx.id)';
         // base
@@ -311,10 +318,11 @@ public function sqlForXPath($table, $xpath, $options = NULL) {
 }
 
 protected function genereatePrefilterSql($table, $options) {
+    $indexTable = $table.'_ndx';
     $recursiveOptions = $options;
     $recursiveOptions["xpath-filters"] = array_slice($recursiveOptions["xpath-filters"], 1, null, true);
     if (count($recursiveOptions["xpath-filters"]) === 0) {
-        $tableOrPrefilter = $table;
+        $tableOrPrefilter = $indexTable;
     } else {
         $tableOrPrefilter = $this->genereatePrefilterSql($table, $recursiveOptions);
     }
@@ -327,23 +335,53 @@ protected function genereatePrefilterSql($table, $options) {
             $filter .= "WHERE tab.txt != '$f'";
         }
     }
-    if (is_array(current($options["xpath-filters"]))) {
-        $filterSpecs = current($options["xpath-filters"]);
-        $as = $filterSpecs["as"];
-        $boolOps = array('<', '>', '<=', '>=', '=', '!=');
-        $boolSpec = array_intersect_key($filterSpecs, array_flip($boolOps));
-        $op = key($boolSpec);
-        $value = current($boolSpec);
-        $whereClause = "CAST(inner.txt AS $as) $op $value ";
+    $xpathToSearchIn = key($options["xpath-filters"]);
+    if ($xpathToSearchIn[0] === '/') {
+        $q = $options["query"];
+        if (current($options["xpath-filters"]) === null) {
+            if ($q === '') {
+                $predicate = ''; 
+            } elseif (isset($options['exact']) and ($options['exact'] === true)) {
+                $predicate = "[.=\"$q\"]"; 
+            } else {
+                $predicate = "[contains(., \"$q\")]"; 
+            }
+        } else {
+            if (is_array(current($options["xpath-filters"]))) {
+                $p = parseFilterSpecs(current($options["xpath-filters"]));
+                $predicate = '['.'.'.$p['op'].$p['value'].']';
+            } else {
+                $predicate = '['.current($options["xpath-filters"]).']';
+            }   
+        }
+        $xpath = $xpathToSearchIn.$predicate;
+        $innerSql = "(SELECT base.id, ExtractValue(base.entry, '$xpath')" . 
+                " AS 'txt' FROM $table AS base GROUP BY base.id HAVING txt != '') AS prefid ";
     } else {
-        $whereClause = "inner.txt = '" . current($options["xpath-filters"]) . "' ";
+        if (is_array(current($options["xpath-filters"]))) {
+            $p = parseFilterSpecs(current($options["xpath-filters"]));
+            $whereClause = "CAST(inner.txt AS ".$p['as'].") ".$p['op']." ".$p['value']." ";
+        } else {
+            $whereClause = "inner.txt = '" . current($options["xpath-filters"]) . "' ";
+        }
+        $innerSql = "(SELECT inner.id, inner.txt FROM $indexTable AS `inner` WHERE ". 
+                   $whereClause .
+                    "AND inner.xpath LIKE '%$xpathToSearchIn') AS prefid ";
     }
-    return "(SELECT tab.id, tab.xpath, tab.txt FROM $tableOrPrefilter AS tab ".
+    return "(SELECT tab.id, tab.xpath, prefid.txt FROM $tableOrPrefilter AS tab ".
             "INNER JOIN " .
-                "(SELECT inner.id FROM $table AS `inner` WHERE ". 
-                $whereClause .
-                "AND inner.xpath LIKE '%" . key($options["xpath-filters"]) . "') AS prefid ".
+            $innerSql .
             "ON tab.id = prefid.id $filter)";
+}
+
+protected function parseFilterSpecs($filterSpecs) {
+    $result = array();
+    $result['as'] = $filterSpecs["as"];
+    $boolOps = array('<', '>', '<=', '>=', '=', '!=');
+    $boolSpec = array_intersect_key($filterSpecs, array_flip($boolOps));
+    $result['op'] = key($boolSpec);
+    $result['value'] = current($boolSpec);
+    return $result;    
 }
 
 /**
@@ -413,7 +451,13 @@ protected function getExplainResult($table, $publicName) {
     $tmpl = new vlibTemplate($this->explainTemplateFilename);
     ErrorOrWarningException::$code_has_known_errors = false;
     
-    $tmpl->setLoop('maps', $this->indices);
+    // PHP: How to use [array_intersect_key()] to filter array keys? http://stackoverflow.com/a/4260168
+    $explainDataKeys = array('title', 'name', 'search', 'scan', 'sort', 'native');
+    $explainData = array();
+    foreach ($this->indices as $indexDescription) {
+        array_push($explainData, array_intersect_key($indexDescription, array_flip($explainDataKeys)));
+    }
+    $tmpl->setLoop('maps', $explainData);
     
     $hostId = 'NoHost';
     if (isset($_SERVER["HTTP_HOST"])) {
@@ -755,7 +799,7 @@ protected function getScanResult($sqlstr, $entry = NULL, $exact = true, $isNumbe
             $term = array(
                 'value' => $this->decodecharrefs($row[0]),
                 'numberOfRecords' => $entry_count,
-// may be usedul for debugging
+// may be useful for debugging
 //                'sid' => $row['sid'],
 //                'idx' => $i,
 //                'rawValue' => $row[0],
