@@ -103,6 +103,42 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
         }
         
         array_push($this->indices, array(
+            'title' => 'Lemma',
+            'name' => 'lemma',
+            'search' => 'true',
+            'scan' => 'true',
+            'sort' => 'false',
+            'filter' => '',
+            'xpath-filters' => array(
+                "//form[@type=\"lemma\" or @type=\"multiUnitWord\"]/orth[@xml:lang=\"fa-Arab\" or @xml:lang=\"fa-x-modDMG\"]" => null
+            )
+        ));
+        
+        array_push($this->indices, array(
+            'title' => 'POS',
+            'name' => 'pos',
+            'search' => 'true',
+            'scan' => 'true',
+            'sort' => 'false',
+            'filter' => '',
+            'xpath-filters' => array(
+                '//gramGrp/gram[@type="pos"]' => null
+            )
+        ));
+        
+        array_push($this->indices, array(
+            'title' => 'Inflected forms',
+            'name' => 'inflected',
+            'search' => 'true',
+            'scan' => 'true',
+            'sort' => 'false',
+            'filter' => '',
+            'xpath-filters' => array(
+                '//form[@type="inflected"]/orth[position()<3]' => null
+            )
+        ));       
+        
+        array_push($this->indices, array(
             'title' => "Language Course $langId - $transLangId unit",
             'name' => 'unit',
             'search' => 'true',

@@ -283,29 +283,11 @@ public function sqlForXPath($table, $xpath, $options = NULL) {
             }
         }
     }
-/*	if (strpos($q, '==') === false) {
-            $operator = "=";
-        } else {
-            $operator = "==";
-        }
-
-        $queryparts = explode($operator, $q);
-        if ($operator == "=") {
-            $queryterm = "'%" . $queryparts[1] . "%'";
-        } else if ($operator == "==") {
-            $queryterm = "'" . $queryparts[1] . "'";
-        }
-
-        if ($queryparts[0] == "lemma") {
-		$querytemplate = "extractvalue(entry,\"entry/form[@type='lemma' or @type='multiUnitWord']/orth[@xml:lang='fa-Arab']\") OR extractvalue(entry,\"entry/form[@type='lemma' or @type='multiUnitWord']/orth[@xml:lang='fa-x-modDMG']\")";
-            //$querytemplate = "SELECT extractvalue(entry,'//lemma') FROM $table where ID = 30";
-        } else if ($queryparts[0] == "pos") {
-            $querytemplate = "extractvalue(entry,\"//gramGrp/gram[@type='pos']\")";
+    
+    /*
         } else if ($queryparts[0] == "senses") {
             $querytemplate = "extractvalue(entry,\"//sense/cit[@xml:lang='en']/quote|//wkp:sense/wkp:cit[@xml:lang='en']/wkp:quote\")";
-        } else if ($queryparts[0] == "inflected") {
-            $querytemplate = "extractvalue(entry,\"entry/form[@type='inflected']/orth[1]\") OR extractvalue(entry,\"entry/form[@type='inflected']/orth[2]\")";
-        }*/
+        } */
     return "SELECT" . ($justCount ? " COUNT(*) " : " ndx.txt, base.entry, base.sid" . $lemma . $groupCount) .
             " FROM " . $table . " AS base " .
             "INNER JOIN " . $indexTableForJoin . " AS ndx ON base.id = ndx.id WHERE base.id > 700" .
