@@ -222,9 +222,9 @@ public function sqlForXPath($table, $xpath, $options = NULL) {
         // ndx search
         $indexTable = $table . "_ndx";
         if (isset($options["xpath-filters"])) {
-            $tableOrPrefilter = $this->genereatePrefilterSql($table, $options);
+            $tableNameOrPrefilter = $this->genereatePrefilterSql($table, $options);
         } else {
-            $tableOrPrefilter = $indexTable;
+            $tableNameOrPrefilter = $indexTable;
         }
         if ($xpath !== "") {
             $likeXpath .= "(";
@@ -253,7 +253,8 @@ public function sqlForXPath($table, $xpath, $options = NULL) {
         $indexTableWhereClause = "WHERE ". $this->_and($query, $this->_and($filter, $likeXpath));
         $indexTableWhereClause = ($indexTableWhereClause === "WHERE ") ? '' : $indexTableWhereClause;
 
-        $indexTable = "(SELECT ndx.id, ndx.txt FROM " . $tableOrPrefilter .
+        $indexTableForJoin = $this->hasOnlyRealXPathFilters($options) ? $tableNameOrPrefilter :
+                "(SELECT ndx.id, ndx.txt FROM " . $tableNameOrPrefilter .
                 " AS ndx $indexTableWhereClause". 
                 // There seems no point in reporting all id + txt if the query did match a lot of txt
                 'GROUP BY ndx.id)';
@@ -304,17 +305,11 @@ public function sqlForXPath($table, $xpath, $options = NULL) {
             $querytemplate = "extractvalue(entry,\"//sense/cit[@xml:lang='en']/quote|//wkp:sense/wkp:cit[@xml:lang='en']/wkp:quote\")";
         } else if ($queryparts[0] == "inflected") {
             $querytemplate = "extractvalue(entry,\"entry/form[@type='inflected']/orth[1]\") OR extractvalue(entry,\"entry/form[@type='inflected']/orth[2]\")";
-        }
-
-        /* not working right now, because entry for profile seems to be to big for extractvalue */
-	/*$querytemplate = "(SELECT extractvalue(entry,'//queryTemplates/$queryparts[0]') FROM ".$table." where id = 9)"; *\	
-	/* */
+        }*/
     return "SELECT" . ($justCount ? " COUNT(*) " : " ndx.txt, base.entry, base.sid" . $lemma . $groupCount) .
             " FROM " . $table . " AS base " .
-            "INNER JOIN " . $indexTable . " AS ndx ON base.id = ndx.id WHERE ndx.id > 700" .
+            "INNER JOIN " . $indexTableForJoin . " AS ndx ON base.id = ndx.id WHERE base.id > 700" .
             $groupAndLimit;  
-/*return //"SELECT COUNT(*), base.entry,base.sid FROM " . $table . " as base where base.entry like '%released%' AND extractvalue(entry,(".$querytemplate.")) like ".$queryterm.$groupAndLimit;  
-"SELECT COUNT(*), base.entry,base.sid FROM " . $table . " as base where base.entry like '%released%' AND (".$querytemplate. " like ".$queryterm.")".$groupAndLimit;         */
 }
 
 protected function genereatePrefilterSql($table, $options) {
@@ -356,7 +351,7 @@ protected function genereatePrefilterSql($table, $options) {
         }
         $xpath = $xpathToSearchIn.$predicate;
         $innerSql = "(SELECT base.id, ExtractValue(base.entry, '$xpath')" . 
-                " AS 'txt' FROM $table AS base GROUP BY base.id HAVING txt != '') AS prefid ";
+                " AS 'txt' FROM $table AS base GROUP BY base.id HAVING txt != '')";
     } else {
         if (is_array(current($options["xpath-filters"]))) {
             $p = parseFilterSpecs(current($options["xpath-filters"]));
@@ -366,12 +361,23 @@ protected function genereatePrefilterSql($table, $options) {
         }
         $innerSql = "(SELECT inner.id, inner.txt FROM $indexTable AS `inner` WHERE ". 
                    $whereClause .
-                    "AND inner.xpath LIKE '%$xpathToSearchIn') AS prefid ";
+                    "AND inner.xpath LIKE '%$xpathToSearchIn')";
     }
-    return "(SELECT tab.id, tab.xpath, prefid.txt FROM $tableOrPrefilter AS tab ".
+    $result = $this->hasOnlyRealXPathFilters($options) ? $innerSql :
+            "(SELECT tab.id, tab.xpath, prefid.txt FROM $tableOrPrefilter AS tab ".
             "INNER JOIN " .
-            $innerSql .
+            $innerSql." AS prefid ". 
             "ON tab.id = prefid.id $filter)";
+    return $result;
+}
+
+protected function hasOnlyRealXPathFilters($options) {
+    if (!isset($options["xpath-filters"])) {return false;}
+    $result = true;
+    foreach ($options["xpath-filters"] as $filterSpec => $unused) {
+       $result = $result && ($filterSpec[0] === '/'); 
+    }
+    return $result;
 }
 
 protected function parseFilterSpecs($filterSpecs) {
