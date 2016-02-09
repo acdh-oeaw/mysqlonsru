@@ -312,12 +312,14 @@ public function sqlForXPath($table, $xpath, $options = NULL) {
             $groupAndLimit;  
 }
 
-protected function genereatePrefilterSql($table, $options) {
-    $indexTable = $table.'_ndx';
+protected function genereatePrefilterSql($table, &$options) {
+    $topMostTable = $this->generateXPathPrefilter($table, $options);
     $recursiveOptions = $options;
+    // check this now. It's cached so changing xpath-filters doesn't matter.
+    $this->hasOnlyRealXPathFilters($options);
     $recursiveOptions["xpath-filters"] = array_slice($recursiveOptions["xpath-filters"], 1, null, true);
     if (count($recursiveOptions["xpath-filters"]) === 0) {
-        $tableOrPrefilter = $indexTable;
+        $tableOrPrefilter = $topMostTable;
     } else {
         $tableOrPrefilter = $this->genereatePrefilterSql($table, $recursiveOptions);
     }
@@ -330,29 +332,8 @@ protected function genereatePrefilterSql($table, $options) {
             $filter .= "WHERE tab.txt != '$f'";
         }
     }
+    $indexTable = $table.'_ndx';
     $xpathToSearchIn = key($options["xpath-filters"]);
-    if ($xpathToSearchIn[0] === '/') {
-        $q = $options["query"];
-        if (current($options["xpath-filters"]) === null) {
-            if ($q === '') {
-                $predicate = ''; 
-            } elseif (isset($options['exact']) and ($options['exact'] === true)) {
-                $predicate = "[.=\"$q\"]"; 
-            } else {
-                $predicate = "[contains(., \"$q\")]"; 
-            }
-        } else {
-            if (is_array(current($options["xpath-filters"]))) {
-                $p = parseFilterSpecs(current($options["xpath-filters"]));
-                $predicate = '['.'.'.$p['op'].$p['value'].']';
-            } else {
-                $predicate = '['.current($options["xpath-filters"]).']';
-            }   
-        }
-        $xpath = $xpathToSearchIn.$predicate;
-        $innerSql = "(SELECT base.id, ExtractValue(base.entry, '$xpath')" . 
-                " AS 'txt' FROM $table AS base GROUP BY base.id HAVING txt != '')";
-    } else {
         if (is_array(current($options["xpath-filters"]))) {
             $p = parseFilterSpecs(current($options["xpath-filters"]));
             $whereClause = "CAST(inner.txt AS ".$p['as'].") ".$p['op']." ".$p['value']." ";
@@ -362,8 +343,7 @@ protected function genereatePrefilterSql($table, $options) {
         $innerSql = "(SELECT inner.id, inner.txt FROM $indexTable AS `inner` WHERE ". 
                    $whereClause .
                     "AND inner.xpath LIKE '%$xpathToSearchIn')";
-    }
-    $result = $this->hasOnlyRealXPathFilters($options) ? $innerSql :
+    $result = $this->hasOnlyRealXPathFilters($options) ? $tableOrPrefilter :
             "(SELECT tab.id, tab.xpath, prefid.txt FROM $tableOrPrefilter AS tab ".
             "INNER JOIN " .
             $innerSql." AS prefid ". 
@@ -371,13 +351,76 @@ protected function genereatePrefilterSql($table, $options) {
     return $result;
 }
 
-protected function hasOnlyRealXPathFilters($options) {
-    if (!isset($options["xpath-filters"])) {return false;}
-    $result = true;
-    foreach ($options["xpath-filters"] as $filterSpec => $unused) {
-       $result = $result && ($filterSpec[0] === '/'); 
+private $xPathPrefilter = '';
+
+protected function generateXPathPrefilter($table, &$options) {
+    if ($this->xPathPrefilter !== '') return $this->xPathPrefilter;
+    $extractValueToCondition = array();
+    $filternum = 0;
+    $filters = $options["xpath-filters"];
+    foreach ($filters as $xpathToSearchIn => $condition) {
+        $colname = 'f'.(string)$filternum;
+        $havingCondition = '!= \'\'';
+        if ($xpathToSearchIn[0] === '/') {
+            $q = $options["query"];
+            if ($condition === null) {
+                $colname = 'txt';
+                if ($q === '') {
+                    $predicate = ''; 
+                } elseif (isset($options['exact']) and ($options['exact'] === true)) {
+                    $predicate = "[.=\"$q\"]"; 
+                } else {
+                    $predicate = "[contains(., \"$q\")]"; 
+                }
+            } else {
+                if (is_array($condition)) {
+                    $p = parseFilterSpecs($condition);
+                    $predicate = '['.'.'.$p['op'].$p['value'].']';
+                } elseif ((strlen($condition) > 0) && ($condition[0] === '[')) {
+                    $predicate = $condition;
+                } else {
+                    $predicate = '';
+                }  
+            }
+            $xpath = $xpathToSearchIn.$predicate;
+            $extractValueToCondition["ExtractValue(base.entry, '$xpath') AS '$colname'"] =
+                   "$colname $havingCondition";
+            $filternum++;
+            unset($filters[$xpathToSearchIn]);
+        }
     }
-    return $result;
+    $extractValues = '';
+    $conditions = '';
+    foreach ($extractValueToCondition as $extractValue => $condition) {
+        $extractValues .= $extractValue.', ';
+        $conditions .= $condition.' AND ';
+    }   
+    $extractValues = rtrim($extractValues, ', ');
+    $conditions = rtrim($conditions, 'AND ');
+    // no XPaths?
+    $this->xPathPrefilter = $extractValues === '' ? $table.'_ndx':
+                "(SELECT base.id, $extractValues" . 
+                " FROM $table AS base GROUP BY base.id HAVING $conditions)";
+    $options["xpath-filters"] = $filters;
+    return $this->xPathPrefilter;
+}
+
+private $cachedHasOnlyRealXPathFilters = null;
+
+protected function hasOnlyRealXPathFilters($options) {
+    if($this->cachedHasOnlyRealXPathFilters !== null) {
+        return $this->cachedHasOnlyRealXPathFilters;
+    }
+    if (!isset($options["xpath-filters"])) {
+        $this->cachedHasOnlyRealXPathFilters = false;
+    } else {
+        $this->cachedHasOnlyRealXPathFilters = true;
+        foreach ($options["xpath-filters"] as $filterSpec => $unused) {
+           $this->cachedHasOnlyRealXPathFilters =
+                $this->cachedHasOnlyRealXPathFilters && ($filterSpec[0] === '/'); 
+       }
+    }
+    return $this->cachedHasOnlyRealXPathFilters;
 }
 
 protected function parseFilterSpecs($filterSpecs) {

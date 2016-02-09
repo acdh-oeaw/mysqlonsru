@@ -36,8 +36,8 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
         "apc_eng_002",
         "aeb_eng_001__v001",
         "ar_de__v001",
-//        "pes_eng_032",
-//        "arz_eng_006",
+        "pes_eng_032",
+        "arz_eng_006",
     );
 
     protected $options = array(
@@ -247,13 +247,19 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
     }
 
     private function addReleasedFilter() {
-        $releasedXPathFilter = array(
-                "-change-f-status-" => "released",
+        if ($this->hasOnlyRealXPathFilters($this->options)) {
+            $releasedXPathFilter = array(
+                '//f[@name="status"]/symbol/@value[.="released"]' => '',
             );
+        } else {
+            $releasedXPathFilter = array(
+                    "-change-f-status-" => "released",
+                );
+        }
         if (in_array($this->params->context[0], $this->restrictedGlossaries)) {
             if (isset($this->options["xpath-filters"])) {
             $this->options["xpath-filters"] = array_merge($this->options["xpath-filters"],
-            $releasedXPathFilter);            
+                 $releasedXPathFilter);            
             } else {
                 $this->options["xpath-filters"] = $releasedXPathFilter;  
             }
