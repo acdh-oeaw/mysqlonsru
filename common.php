@@ -326,7 +326,7 @@ protected function genereatePrefilterSql($table, &$options) {
                    $whereClause .
                     "AND inner.xpath LIKE '%$xpathToSearchIn')";
     $result = $this->hasOnlyRealXPathFilters($options) ? $tableOrPrefilter :
-            "(SELECT tab.id, tab.xpath, prefid.txt FROM $tableOrPrefilter AS tab ".
+            "(SELECT tab.id, tab.xpath, tab.txt FROM $tableOrPrefilter AS tab ".
             "INNER JOIN " .
             $innerSql." AS prefid ". 
             "ON tab.id = prefid.id $filter)";
