@@ -866,9 +866,11 @@ protected function getScanResult($sqlstr, $entry = NULL, $exact = true, $isNumbe
                 $startPosition++;
             }
         }
-        $position = $startPosition;
+        $position = ($startPosition - $this->params->responsePosition) + 1;
+        $position = $position <= 0 ? 0 : $position;
         $shortList = array();
-        while ($position < min($maximumTerms + $startPosition, count($sortedTerms))){
+        $endPosition = min($position + $maximumTerms, count($sortedTerms));
+        while ($position < $endPosition){
             $sortedTerms[$position]['value'] = htmlentities($sortedTerms[$position]['value'], ENT_XML1);
             if (isset($sortedTerms[$position]['displayTerm']))
                 $sortedTerms[$position]['displayTerm'] = htmlentities($sortedTerms[$position]['displayTerm'], ENT_XML1);

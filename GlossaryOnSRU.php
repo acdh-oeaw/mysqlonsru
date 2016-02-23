@@ -256,7 +256,7 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
         
         if (isset($indexDescription['sqlStrScan'])) {
             $sqlstr = $indexDescription['sqlStrScan'];
-            $scanClause = null;
+            $scanClause = $splittetSearchClause['searchString'];
             $exact = true;
             $isNumber = true;
         } else {
@@ -269,7 +269,7 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
             } else {
                 $exact = in_array($splittetSearchClause['operator'], array('==', 'exact')) ? true : false;
             }
-            $scanClause = ""; // a scan clause that is no index cannot be used.
+            $scanClause = $splittetSearchClause['searchString']; // a scan clause that is no index cannot be used.
         }
 
         $scanResult = $this->getScanResult($sqlstr, $scanClause, $exact, $isNumber);
