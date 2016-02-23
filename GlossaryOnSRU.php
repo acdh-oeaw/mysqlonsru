@@ -18,6 +18,7 @@ namespace ACDH\FCSSRU\mysqlonsru;
 
 use ACDH\FCSSRU\mysqlonsru\SRUFromMysqlBase,
     ACDH\FCSSRU\ErrorOrWarningException,
+    ACDH\FCSSRU\ESRUDiagnostics,
     ACDH\FCSSRU\SRUDiagnostics,
     ACDH\FCSSRU\SRUWithFCSParameters,
     ACDH\FCSSRU\Http\Response,
@@ -55,7 +56,7 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
         $this->extendedSearchResultProcessing = true;
 
         if ($this->params->context[0] === '') {
-            return new SRUDiagnostics(1, 'This script needs to know which resource to use!');
+            throw new ESRUDiagnostics(new SRUDiagnostics(1, 'This script needs to know which resource to use!'));
         }
 
         $glossTable = $this->params->context[0];
@@ -473,7 +474,12 @@ class glossarySearchResultComparator extends searchResultComparator {
 
 }
 if (!isset($runner)) {
-    $worker = new GlossaryOnSRU(new SRUWithFCSParameters('lax'));
-    $response = $worker->run();
+    try {
+       $worker = new GlossaryOnSRU(new SRUWithFCSParameters('lax'));
+       $response = $worker->run();        
+    } catch (ESRUDiagnostics $ex) {
+       $response = new Response();
+       $response->setContent($ex->getSRUDiagnostics()->getAsXML());
+    }
     HttpResponseSender::sendResponse($response);
 }
