@@ -365,7 +365,8 @@ protected function generateXPathPrefilter($table, &$options) {
                 }  
             }
             $xpath = $xpathToSearchIn.$predicate;
-            $extractValueToCondition["ExtractValue(base.entry, '$xpath') AS '$colname'"] =
+            // Unfortunately MySQL's TRIM does not deal with \r\n. 
+            $extractValueToCondition["Trim(Replace(ExtractValue(base.entry, '$xpath'), '\\r\\n', ' ')) AS '$colname'"] =
                    "$colname $havingCondition";
             $filternum++;
             unset($filters[$xpathToSearchIn]);
