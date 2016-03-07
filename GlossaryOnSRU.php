@@ -192,7 +192,7 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
      */
     public function explain() {
         $ret = new Response();
-        $ret->getHeaders()->addHeaders(array('content-type' => 'text/xml'));
+        $ret->getHeaders()->addHeaders(array('content-type' => 'text/xml; charset=UTF-8'));
         $ret->setContent($this->getExplainResult($this->params->context[0], $this->params->context[0]));
         return $ret;
     }
@@ -259,23 +259,27 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
             $scanClause = $splittetSearchClause['searchString'];
             $exact = true;
             $isNumber = true;
+            $startsWith = true;
         } else {
             $sqlstr = $this->sqlForXPath($glossTable, $indexDescription['filter'], $this->options);
 //                $sqlstr = $this->sqlForXPath($glossTable, "-xml:id", $this->options);
             $isNumber = false;
             $exact = false;
+            $startsWith = false;
             if (isset($indexDescription['exactOnly']) && ($indexDescription['exactOnly'] === true)) {
+                $startsWith = true;
                 $exact = true;
             } else {
-                $exact = in_array($splittetSearchClause['operator'], array('==', 'exact')) ? true : false;
+                $exact = in_array($splittetSearchClause['operator'], array('==', 'exact'));
+                $startsWith = in_array($splittetSearchClause['operator'], array('>='));
             }
             $scanClause = $splittetSearchClause['searchString']; // a scan clause that is no index cannot be used.
         }
 
-        $scanResult = $this->getScanResult($sqlstr, $scanClause, $exact, $isNumber);
+        $scanResult = $this->getScanResult($sqlstr, $scanClause, $exact, $isNumber, $startsWith);
         if ($scanResult !== '') {
             $ret = new Response();
-            $ret->getHeaders()->addHeaders(array('content-type' => 'text/xml'));
+            $ret->getHeaders()->addHeaders(array('content-type' => 'text/xml; charset=UTF-8'));
             $ret->setContent($scanResult);
         } else {
             $ret = $this->errorDiagnostics;
@@ -348,7 +352,7 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
         }
         if ($searchResult !== '') {
             $ret = new Response();
-            $ret->getHeaders()->addHeaders(array('content-type' => 'text/xml'));
+            $ret->getHeaders()->addHeaders(array('content-type' => 'text/xml; charset=UTF-8'));
             $ret->setContent($searchResult);
         } else {
             $ret = $this->errorDiagnostics;
@@ -426,7 +430,7 @@ class glossarySearchResultComparator extends searchResultComparator {
     
     public function __construct($query) {
         $this->query = $query;
-        $this->queryLen = strlen($query);
+        $this->queryLen = mb_strlen($query);
     }
     /**
      * 
@@ -450,7 +454,7 @@ class glossarySearchResultComparator extends searchResultComparator {
             if ($text === $this->query) {
                 $similarityA += 10;
             } else {
-                $norm = strlen($text) > $this->queryLen ? strlen($text) : $this->queryLen;
+                $norm = mb_strlen($text) > $this->queryLen ? mb_strlen($text) : $this->queryLen;
                 $ratio = 1 - (\levenshtein($this->query, $text) / $norm);
                 $similarityA *= 1 + $ratio;
             }
@@ -460,7 +464,7 @@ class glossarySearchResultComparator extends searchResultComparator {
             if ($text === $this->query) {
                 $similarityB += 10;
             } else {
-                $norm = strlen($text) > $this->queryLen ? strlen($text) : $this->queryLen;
+                $norm = mb_strlen($text) > $this->queryLen ? mb_strlen($text) : $this->queryLen;
                 $ratio = 1 - (\levenshtein($this->query, $text) / $norm);
                 $similarityB *= 1 + $ratio;
             }

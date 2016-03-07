@@ -8,6 +8,12 @@
  */
 
 namespace ACDH\FCSSRU\mysqlonsru;
+
+\mb_internal_encoding('UTF-8');
+\mb_http_output('UTF-8');
+\mb_http_input('UTF-8');
+\mb_regex_encoding('UTF-8'); 
+
 /**
  * Configuration options and function common to all fcs php scripts
  */
@@ -358,7 +364,7 @@ protected function generateXPathPrefilter($table, &$options) {
                 if (is_array($condition)) {
                     $p = parseFilterSpecs($condition);
                     $predicate = '['.'.'.$p['op'].$p['value'].']';
-                } elseif ((strlen($condition) > 0) && ($condition[0] === '[')) {
+                } elseif ((mb_strlen($condition) > 0) && ($condition[0] === '[')) {
                     $predicate = $condition;
                 } else {
                     $predicate = '';
@@ -808,7 +814,7 @@ protected function processSearchResult($line) {
     // Note: just a dummy, not called by default.
     return $line[1];    
 }
-protected function getScanResult($sqlstr, $entry = NULL, $exact = true, $isNumber = false) {
+protected function getScanResult($sqlstr, $entry = NULL, $startsWith = true, $isNumber = false, $exact = false) {
     if ($this->scanTemplateFilename === '') {
         global $scanTemplate;
         $this->scanTemplateFilename = $scanTemplate; 
@@ -861,8 +867,12 @@ protected function getScanResult($sqlstr, $entry = NULL, $exact = true, $isNumbe
             $startAtString = is_array($entry) ? $entry[0] : $entry;
             while ($startAtString !== "" && $startPosition < count($sortedTerms)) {
                 $found = strpos($sortedTerms[$startPosition]["value"], $startAtString);
-                if ($exact ? $found === 0 : $found !== false) {
-                    break;
+                if ($startsWith ? $found === 0 : $found !== false) {
+                    if (!$exact) {
+                        break;
+                    } elseif ($sortedTerms[$startPosition]["value"] === $startAtString) {
+                        break;
+                    }                    
                 }
                 $startPosition++;
             }
