@@ -281,7 +281,9 @@ public function sqlForXPath($table, $xpath, $options = NULL) {
         if (isset($options["startRecord"]) && $options["startRecord"] !== false) {
             $groupAndLimit .= " LIMIT " . ($options["startRecord"] - 1);
         }
+        $sqlCalcRows = '';
         if (isset($options["maximumRecords"]) && $options["maximumRecords"] !== false) {
+            $sqlCalcRows = 'SQL_CALC_FOUND_ROWS';
             if (isset($options["startRecord"]) && $options["startRecord"] !== false) {
                 $groupAndLimit .= ", " . $options["maximumRecords"];
             } else {
@@ -294,7 +296,8 @@ public function sqlForXPath($table, $xpath, $options = NULL) {
         } else if ($queryparts[0] == "senses") {
             $querytemplate = "extractvalue(entry,\"//sense/cit[@xml:lang='en']/quote|//wkp:sense/wkp:cit[@xml:lang='en']/wkp:quote\")";
         } */
-    return "SELECT" . ($justCount ? " COUNT(*) " : " ndx.txt, base.entry, base.sid" . $lemma . $groupCount) .
+    return "SELECT " . $sqlCalcRows .
+            ($justCount ? " COUNT(*) " : " ndx.txt, base.entry, base.sid" . $lemma . $groupCount) .
             " FROM " . $table . " AS base " .
             "INNER JOIN " . $indexTableForJoin . " AS ndx ON base.id = ndx.id WHERE base.id > 700" .
             $groupAndLimit;  
