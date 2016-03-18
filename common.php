@@ -326,7 +326,7 @@ protected function genereatePrefilterSql($table, &$options) {
     $indexTable = $table.'_ndx';
     $xpathToSearchIn = key($options["xpath-filters"]);
         if (is_array(current($options["xpath-filters"]))) {
-            $p = parseFilterSpecs(current($options["xpath-filters"]));
+            $p = $this->parseFilterSpecs(current($options["xpath-filters"]));
             $whereClause = "CAST(inner.txt AS ".$p['as'].") ".$p['op']." ".$p['value']." ";
         } else {
             $whereClause = "inner.txt = '" . current($options["xpath-filters"]) . "' ";
