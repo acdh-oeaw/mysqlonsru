@@ -249,6 +249,10 @@ public function sqlForXPath($table, $xpath, $options = NULL) {
             $qEnc = $this->encodecharrefs($q);
             if (isset($options["exact"]) && $options["exact"] === true) {
                $query .= "(ndx.txt = '$q' OR ndx.txt = '$qEnc') ";
+            } elseif (isset($options["startsWith"]) && $options["startsWith"] === true) {
+               $query .= "(ndx.txt LIKE '$q%' OR ndx.txt LIKE '$qEnc%') ";
+            } elseif (isset($options["endsWith"]) && $options["endsWith"] === true) {
+               $query .= "(ndx.txt LIKE '%$q' OR ndx.txt LIKE '%$qEnc') ";
             } elseif ($q !== '') {
                $query .= "(ndx.txt LIKE '%$q%' OR ndx.txt LIKE '%$qEnc%') ";
             } else {
@@ -351,7 +355,18 @@ protected function generateXPathPrefilter($table, &$options) {
     $filters = $options["xpath-filters"];
     foreach ($filters as $xpathToSearchIn => $condition) {
         $colname = 'f'.(string)$filternum;
-        $havingCondition = '!= \'\'';
+        
+        if ($condition === null) {
+            if (isset($options['startsWith']) && $options['startsWith'] === true) {
+                $havingCondition = ' LIKE \''.$options["query"].'%\'';           
+            } elseif (isset($options['startsWith']) && $options['startsWith'] === true) {
+                $havingCondition = ' LIKE %'.$options["query"];
+            } else {
+                $havingCondition = '!= \'\'';
+            }
+        } else {
+            $havingCondition = '!= \'\'';            
+        }
         if ($xpathToSearchIn[0] === '/') {
             $q = $options["query"];
             if ($condition === null) {
@@ -846,7 +861,10 @@ protected function getScanResult($sqlstr, $entry = NULL, $startsWith = true, $is
 //                'rawValue' => $row[0],
             );
             // for sorting ignore some punctation marks etc.
-            $term["sortValue"] = trim(preg_replace('/[?!()*,.\\-\\/|=]/', '', mb_strtoupper($term["value"], 'UTF-8')));
+            $term["sortValue"] = trim(preg_replace('/[?!()*,."„“\\-\\/|=]/', '', mb_strtoupper($term["value"], 'UTF-8')));
+            $term["sortValue"] = preg_replace('/^Ä/', 'AzA', $term["sortValue"]);
+            $term["sortValue"] = preg_replace('/^Ü/', 'UzU', $term["sortValue"]);
+            $term["sortValue"] = preg_replace('/^Ö/', 'OzO', $term["sortValue"]);
             // sort strings that start with numbers at the back.
             $term["sortValue"] = preg_replace('/^(\d)/', 'zz${1}', $term["sortValue"]);
             // only punctation marks or nothing at all last.
@@ -881,19 +899,22 @@ protected function getScanResult($sqlstr, $entry = NULL, $startsWith = true, $is
             }
         }
         $position = ($startPosition - $this->params->responsePosition) + 1;
-        $position = $position <= 0 ? 0 : $position;
+        $position = $position <= 0 ? 1 : $position;
+        $i = $position - 1;
         $shortList = array();
-        $endPosition = min($position + $maximumTerms, count($sortedTerms));
-        while ($position < $endPosition){
-            $sortedTerms[$position]['value'] = htmlentities($sortedTerms[$position]['value'], ENT_XML1);
-            if (isset($sortedTerms[$position]['displayTerm']))
-                $sortedTerms[$position]['displayTerm'] = htmlentities($sortedTerms[$position]['displayTerm'], ENT_XML1);
-            array_push($shortList, $sortedTerms[$position]);
-            $shortList[$position]["position"] = $position + 1;
-            $position++;
+        $endPosition = min($position + $maximumTerms - 1, count($sortedTerms));
+        while ($i < $endPosition){
+            $sortedTerms[$i]['value'] = htmlentities($sortedTerms[$i]['value'], ENT_XML1);
+            if (isset($sortedTerms[$i]['displayTerm']))
+                $sortedTerms[$i]['displayTerm'] = htmlentities($sortedTerms[$i]['displayTerm'], ENT_XML1);
+            array_push($shortList, $sortedTerms[$i]);
+            $shortList[$i - $position + 1]["position"] = $i + 1;
+            $i++;
         }
-
-        $tmpl->setloop('terms', $shortList);
+        
+        if (count($shortList) > 0) {
+            $tmpl->setloop('terms', $shortList);
+        }
 
         $tmpl->setVar('version', $this->params->version);
         $tmpl->setVar('count', $numberOfRecords);

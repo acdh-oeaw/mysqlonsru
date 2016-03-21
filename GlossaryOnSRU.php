@@ -261,11 +261,13 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
             $isNumber = true;
             $startsWith = true;
         } else {
+//            $this->options["query"] = $this->db->escape_string($splittetSearchClause['searchString']);
+//            $this->options["startsWith"] = true;
             $sqlstr = $this->sqlForXPath($glossTable, $indexDescription['filter'], $this->options);
 //                $sqlstr = $this->sqlForXPath($glossTable, "-xml:id", $this->options);
             $isNumber = false;
             $exact = false;
-            $startsWith = false;
+            $startsWith = true;
             if (isset($indexDescription['exactOnly']) && ($indexDescription['exactOnly'] === true)) {
                 $startsWith = true;
                 $exact = true;
@@ -276,7 +278,7 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
             $scanClause = $splittetSearchClause['searchString']; // a scan clause that is no index cannot be used.
         }
 
-        $scanResult = $this->getScanResult($sqlstr, $scanClause, $exact, $isNumber, $startsWith);
+        $scanResult = $this->getScanResult($sqlstr, $scanClause, $startsWith, $isNumber, $exact);
         if ($scanResult !== '') {
             $ret = new Response();
             $ret->getHeaders()->addHeaders(array('content-type' => 'text/xml; charset=UTF-8'));
