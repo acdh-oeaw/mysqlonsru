@@ -97,8 +97,13 @@ public function db_connect() {
 // Load database and user data
     global $dbConfigFile;
     require_once $dbConfigFile;
-
-    $this->db = new \mysqli($server, $user, $password, $database);
+    
+    try {
+        $this->db = new \mysqli($server, $user, $password, $database);
+    } catch(ErrorOrWarningException $e) {
+        $this->errorDiagnostics = new SRUDiagnostics(1, 'MySQL Connection Error: Failed to connect to database: (' . $e->getMessage(). ")");
+        return $this->errorDiagnostics;
+    }
     if ($this->db->connect_errno) {
         $this->errorDiagnostics = new SRUDiagnostics(1, 'MySQL Connection Error: Failed to connect to database: (' . $this->db->connect_errno . ") " . $this->db->connect_error);
     }
@@ -368,7 +373,7 @@ protected function generateXPathPrefilter($table, &$options) {
             $havingCondition = '!= \'\'';            
         }
         if ($xpathToSearchIn[0] === '/') {
-            $q = $options["query"];
+            $q = $options["query"];            
             if ($condition === null) {
                 $colname = 'txt';
                 if ($q === '') {
@@ -970,6 +975,9 @@ public function run() {
         xdebug_start_error_collection();
     }
     $this->db = $this->db_connect();
+    if ($this->db instanceof SRUDiagnostics) {
+        return $this->diagnosticsToResponse($this->db);
+    }
     if ($this->db ->connect_errno) {
         $ret = $this->errorDiagnostics;
     } else if ($this->params->operation === "explain" || $this->params->operation == "") {
