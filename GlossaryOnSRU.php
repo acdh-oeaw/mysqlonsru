@@ -111,7 +111,7 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
             'sort' => 'false',
             'filter' => '',
             'xpath-filters' => array(
-                "//form[@type=\"lemma\" or @type=\"multiUnitWord\"]/orth[@xml:lang=\"fa-Arab\" or @xml:lang=\"fa-x-modDMG\"]" => null
+                "//form[@type=\"lemma\" or @type=\"multiUnitWord\"]/orth" => null
             )
         ));
         
@@ -257,28 +257,30 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
         if (isset($indexDescription['sqlStrScan'])) {
             $sqlstr = $indexDescription['sqlStrScan'];
             $scanClause = $splittetSearchClause['searchString'];
-            $exact = true;
+            $searchRelation = SRUFromMysqlBase::EXACT;
             $isNumber = true;
-            $startsWith = true;
         } else {
-//            $this->options["query"] = $this->db->escape_string($splittetSearchClause['searchString']);
-//            $this->options["startsWith"] = true;
             $sqlstr = $this->sqlForXPath($glossTable, $indexDescription['filter'], $this->options);
-//                $sqlstr = $this->sqlForXPath($glossTable, "-xml:id", $this->options);
             $isNumber = false;
-            $exact = false;
-            $startsWith = true;
-            if (isset($indexDescription['exactOnly']) && ($indexDescription['exactOnly'] === true)) {
-                $startsWith = true;
-                $exact = true;
+            $searchRelation = SRUFromMysqlBase::STARTS_WITH;
+            if (isset($indexDescription['exactOnly']) && ($indexDescription['exactOnly'] === true)) {                
+                $searchRelation = SRUFromMysqlBase::STARTS_WITH;
             } else {
-                $exact = in_array($splittetSearchClause['operator'], array('==', 'exact'));
-                $startsWith = in_array($splittetSearchClause['operator'], array('>='));
+                if (in_array($splittetSearchClause['operator'], array('==', 'exact'))) {
+                    $searchRelation = SRUFromMysqlBase::EXACT;
+                } elseif(in_array($splittetSearchClause['operator'], array('>='))) {
+                    $searchRelation = SRUFromMysqlBase::STARTS_WITH;          
+                } elseif(in_array($splittetSearchClause['operator'], array('<='))) {
+                    $searchRelation = SRUFromMysqlBase::ENDS_WITH;          
+                } elseif(in_array($splittetSearchClause['operator'], array('any'))) {
+                    $searchRelation = SRUFromMysqlBase::CONTAINS;
+                }
             }
+            $searchRelation = $this->parseStarAndRemove($splittetSearchClause, $searchRelation);
             $scanClause = $splittetSearchClause['searchString']; // a scan clause that is no index cannot be used.
         }
 
-        $scanResult = $this->getScanResult($sqlstr, $scanClause, $startsWith, $isNumber, $exact);
+        $scanResult = $this->getScanResult($sqlstr, $scanClause, $searchRelation, $isNumber);
         if ($scanResult !== '') {
             $ret = new Response();
             $ret->getHeaders()->addHeaders(array('content-type' => 'text/xml; charset=UTF-8'));
