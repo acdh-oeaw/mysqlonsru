@@ -1143,7 +1143,7 @@ protected function getScanResult($sqlstr, $entry = NULL, $searchRelation = SRUFr
             });
         }
         
-        if (isset($this->params->xfilter) && ($this->params->xfilter !== '')) {
+        if (($this->params->xfilter !== false) && ($this->params->xfilter !== '')) {
             $options = array();
             $options['searchString'] = $this->params->xfilter;
             $fuzzyFilter = $options['searchString'] === $this->remove_accents($options['searchString'], true);
