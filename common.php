@@ -1146,11 +1146,12 @@ protected function getScanResult($sqlstr, $entry = NULL, $searchRelation = SRUFr
         if (($this->params->xfilter !== false) && ($this->params->xfilter !== '')) {
             $options = array();
             $options['searchString'] = $this->params->xfilter;
-            $fuzzyFilter = $options['searchString'] === $this->remove_accents($options['searchString'], true);
+            $fuzzyIncludesCaseInsensitive = true;
+            $fuzzyFilter = $options['searchString'] === $this->remove_accents($options['searchString'], $fuzzyIncludesCaseInsensitive);
             $searchRelation = $this->parseStarAndRemove($options, SRUFromMysqlBase::STARTS_WITH);
             $filteredSortedTerms = array_filter($sortedTerms, function($var) use ($searchRelation, $options, $fuzzyFilter) {
-                $value = $fuzzyFilter ? $this->remove_accents($var['value'], false) : $var['value'];
-                $searchString = $fuzzyFilter ? $this->remove_accents($options['searchString'], false) : $options['searchString'];
+                $value = $fuzzyFilter ? $this->remove_accents($var['value'], $fuzzyIncludesCaseInsensitive) : $var['value'];
+                $searchString = $fuzzyFilter ? $this->remove_accents($options['searchString'], $fuzzyIncludesCaseInsensitive) : $options['searchString'];
                 switch ($searchRelation) {
                     case SRUFromMysqlBase::ENDS_WITH :
                         return mb_strpos($value, $searchString) ===
