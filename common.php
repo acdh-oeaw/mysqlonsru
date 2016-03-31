@@ -615,7 +615,7 @@ protected function generateXPathPrefilter($table, &$options) {
             if (isset($options['searchRelation']) && $options['searchRelation'] === SRUFromMysqlBase::STARTS_WITH) {
                 $havingCondition = ' LIKE \''.$options["query"].'%\'';           
             } elseif (isset($options['searchRelation']) && $options['searchRelation'] === SRUFromMysqlBase::ENDS_WITH) {
-                $havingCondition = ' LIKE %'.$options["query"];
+                $havingCondition = ' LIKE \'%'.$options["query"].'\'';
             } else {
                 $havingCondition = '!= \'\'';
             }
