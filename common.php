@@ -342,7 +342,7 @@ private $chars_to_accentless_lower;
         
         // not mb_strstr uses byte wise encoding!
         if ($andToLower) {
-            return strtr($string, $this->chars_to_accentless_lower);
+            return strtolower(strtr($string, $this->chars_to_accentless_lower));
         } else {
             return strtr($string, $this->chars_to_accentless);
         }
@@ -1152,7 +1152,7 @@ protected function getScanResult($sqlstr, $entry = NULL, $searchRelation = SRUFr
             $filteredSortedTerms = array_filter($sortedTerms, function($var)
                 use ($searchRelation, $options, $fuzzyFilter, $fuzzyIncludesCaseInsensitive) {
                 $value = $fuzzyFilter ? $this->remove_accents($var['value'], $fuzzyIncludesCaseInsensitive) : $var['value'];
-                $searchString = $fuzzyFilter ? $this->remove_accents($options['searchString'], $fuzzyIncludesCaseInsensitive) : $options['searchString'];
+                $searchString = $options['searchString'];
                 switch ($searchRelation) {
                     case SRUFromMysqlBase::ENDS_WITH :
                         return mb_strpos($value, $searchString) ===
