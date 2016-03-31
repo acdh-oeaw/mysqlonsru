@@ -332,12 +332,26 @@ protected function decodecharrefs($str) {
         // not mb_strstr uses byte wise encoding!
         return strtr($string, $chars);
     }
-
+    
     const STARTS_WITH = 1;
     const ENDS_WITH = -1;
     const CONTAINS = 0;
     const EXACT = 2;
     
+    protected function operatorToStringSearchRelation($operator, $defaultRealtion = SRUFromMysqlBase::EXACT) {        
+        if (in_array($operator, array('==', 'exact'))) {
+            return SRUFromMysqlBase::EXACT;
+        } elseif (in_array($operator, array('>='))) {
+            return SRUFromMysqlBase::STARTS_WITH;
+        } elseif (in_array($operator, array('<='))) {
+            return SRUFromMysqlBase::ENDS_WITH;
+        } elseif (in_array($operator, array('any'))) {
+            return SRUFromMysqlBase::CONTAINS;
+        } else {
+            return $defaultRealtion;
+        }
+    }
+
     protected function parseStarAndRemove(array &$splittetSearchClause, $defaultRealtion = SRUFromMysqlBase::EXACT) {
         $starPos = mb_strrpos($splittetSearchClause['searchString'], '*');
         if ($starPos !== false) {
@@ -473,9 +487,9 @@ public function sqlForXPath($table, $xpath, $options = NULL) {
         if (isset($options["query"])) {
             $q = $options["query"];
             $qEnc = $this->encodecharrefs($q);
-            if (isset($options["exact"]) && $options["exact"] === true) {
+            if (isset($options["searchRelation"]) && $options["searchRelation"] === SRUFromMysqlBase::EXACT) {
                $query .= "(ndx.txt = '$q' OR ndx.txt = '$qEnc') ";
-            } elseif (isset($options["startsWith"]) && $options["startsWith"] === true) {
+            } elseif (isset($options["searchRelation"]) && $options["searchRelation"] === SRUFromMysqlBase::STARTS_WITH) {
                $query .= "(ndx.txt LIKE '$q%' OR ndx.txt LIKE '$qEnc%') ";
             } elseif (isset($options["endsWith"]) && $options["endsWith"] === true) {
                $query .= "(ndx.txt LIKE '%$q' OR ndx.txt LIKE '%$qEnc') ";

@@ -266,15 +266,7 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
             if (isset($indexDescription['exactOnly']) && ($indexDescription['exactOnly'] === true)) {                
                 $searchRelation = SRUFromMysqlBase::STARTS_WITH;
             } else {
-                if (in_array($splittetSearchClause['operator'], array('==', 'exact'))) {
-                    $searchRelation = SRUFromMysqlBase::EXACT;
-                } elseif(in_array($splittetSearchClause['operator'], array('>='))) {
-                    $searchRelation = SRUFromMysqlBase::STARTS_WITH;          
-                } elseif(in_array($splittetSearchClause['operator'], array('<='))) {
-                    $searchRelation = SRUFromMysqlBase::ENDS_WITH;          
-                } elseif(in_array($splittetSearchClause['operator'], array('any'))) {
-                    $searchRelation = SRUFromMysqlBase::CONTAINS;
-                }
+                $searchRelation = $this->operatorToStringSearchRelation($splittetSearchClause['operator'], $searchRelation);
             }
             $searchRelation = $this->parseStarAndRemove($splittetSearchClause, $searchRelation);
             $scanClause = $splittetSearchClause['searchString']; // a scan clause that is no index cannot be used.
@@ -348,8 +340,9 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
         } else {
             $this->options["query"] = $this->db->escape_string($splittetSearchClause['searchString']);
             $this->options["xpath"] = $indexDescription['filter'];
-            $this->options["exact"] = in_array($splittetSearchClause['operator'], array('==', 'exact'))||
-                                      (isset($indexDescription['exactOnly']) && $indexDescription['exactOnly'] === true)? true : false;
+            $this->options["searchRelation"] = isset($indexDescription['exactOnly']) && $indexDescription['exactOnly'] === true ?
+                    $this->operatorToStringSearchRelation($splittetSearchClause['operator']) :
+                    SRUFromMysqlBase::EXACT;
             $this->options["dbtable"] = $glossTable;
 
             $searchResult = $this->getSearchResult($this->options, "Glossary for " . $this->options["query"], new glossaryComparatorFactory($this->options["query"]));
