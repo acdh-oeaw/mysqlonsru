@@ -142,6 +142,9 @@ protected function decodecharrefs($str) {
     return \ACDH\FCSSRU\html_entity_decode_numeric($str);
 }
 
+private $chars_to_accentless;
+private $chars_to_accentless_lower;
+
 /**
  * Converts all accent characters to ASCII characters.
  *
@@ -150,9 +153,10 @@ protected function decodecharrefs($str) {
  * @param string $string Text that might have accent characters
  * @return string Filtered string with replaced "nice" characters.
  */
-    protected function remove_accents($string) {
+    protected function remove_accents($string, $andToLower = false) {
 
-        $chars = array(
+        if (!isset($this->chars_to_accentless)) {
+        $this->chars_to_accentless = array(
             // Decompositions for Latin-1 Supplement
             chr(194) . chr(170) => 'a', chr(194) . chr(186) => 'o',
             chr(195) . chr(128) => 'A', chr(195) . chr(129) => 'A',
@@ -327,10 +331,21 @@ protected function decodecharrefs($str) {
             // grave accent
             chr(199) . chr(155) => 'U', chr(199) . chr(156) => 'u',
         );
-
-
+        }
+        
+        if (!isset($this->chars_to_accentless_lower)) {
+            $this->chars_to_accentless_lower = $this->chars_to_accentless;
+            array_walk($this->chars_to_accentless_lower, function(&$val, $key) {
+                $val = strtolower($val);
+            });
+        }
+        
         // not mb_strstr uses byte wise encoding!
-        return strtr($string, $chars);
+        if ($andToLower) {
+            return strtr($string, $this->chars_to_accentless_lower);
+        } else {
+            return strtr($string, $this->chars_to_accentless);
+        }
     }
     
     const STARTS_WITH = 1;
@@ -1127,6 +1142,33 @@ protected function getScanResult($sqlstr, $entry = NULL, $searchRelation = SRUFr
                 return $ret;
             });
         }
+        
+        if (isset($this->params->xfilter) && ($this->params->xfilter !== '')) {
+            $options = array();
+            $options['searchString'] = $this->params->xfilter;
+            $fuzzyFilter = $options['searchString'] === $this->remove_accents($options['searchString'], true);
+            $searchRelation = $this->parseStarAndRemove($options, SRUFromMysqlBase::STARTS_WITH);
+            $filteredSortedTerms = array_filter($sortedTerms, function($var) use ($searchRelation, $options, $fuzzyFilter) {
+                $value = $fuzzyFilter ? $this->remove_accents($var['value'], false) : $var['value'];
+                $searchString = $fuzzyFilter ? $this->remove_accents($options['searchString'], false) : $options['searchString'];
+                switch ($searchRelation) {
+                    case SRUFromMysqlBase::ENDS_WITH :
+                        return mb_strpos($value, $searchString) ===
+                        (mb_strlen($value) - mb_strlen($searchString));
+                    case SRUFromMysqlBase::CONTAINS :
+                        return mb_strpos($value, $searchString) !== FALSE;
+                    case SRUFromMysqlBase::STARTS_WITH :
+                        return mb_strpos($value, $searchString) === 0;
+                    default :
+                        return $value === $searchString;                   
+                } 
+            });
+            $sortedTerms = array();
+            foreach ($filteredSortedTerms as $key => $value) {
+                $value['position'] = $key;
+                array_push($sortedTerms, $value); 
+            }
+        }
 
         $startPosition = 0;
         if (isset($entry)) {
@@ -1161,7 +1203,9 @@ protected function getScanResult($sqlstr, $entry = NULL, $searchRelation = SRUFr
             if (isset($sortedTerms[$i]['displayTerm']))
                 $sortedTerms[$i]['displayTerm'] = htmlentities($sortedTerms[$i]['displayTerm'], ENT_XML1);
             array_push($shortList, $sortedTerms[$i]);
-            $shortList[$i - $position + 1]["position"] = $i + 1;
+            if (!isset($shortList[$i - $position + 1]["position"])) {
+                $shortList[$i - $position + 1]["position"] = $i + 1;            
+            }
             $i++;
         }
         
