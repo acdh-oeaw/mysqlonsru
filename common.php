@@ -1149,7 +1149,8 @@ protected function getScanResult($sqlstr, $entry = NULL, $searchRelation = SRUFr
             $fuzzyIncludesCaseInsensitive = true;
             $fuzzyFilter = $options['searchString'] === $this->remove_accents($options['searchString'], $fuzzyIncludesCaseInsensitive);
             $searchRelation = $this->parseStarAndRemove($options, SRUFromMysqlBase::STARTS_WITH);
-            $filteredSortedTerms = array_filter($sortedTerms, function($var) use ($searchRelation, $options, $fuzzyFilter) {
+            $filteredSortedTerms = array_filter($sortedTerms, function($var)
+                use ($searchRelation, $options, $fuzzyFilter, $fuzzyIncludesCaseInsensitive) {
                 $value = $fuzzyFilter ? $this->remove_accents($var['value'], $fuzzyIncludesCaseInsensitive) : $var['value'];
                 $searchString = $fuzzyFilter ? $this->remove_accents($options['searchString'], $fuzzyIncludesCaseInsensitive) : $options['searchString'];
                 switch ($searchRelation) {
