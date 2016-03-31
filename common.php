@@ -438,7 +438,7 @@ protected function _and($string1, $string2) {
  *                                                 xpath having the value text.
  *                                distinct-values => whether the result should have only a single
  *                                                   column for each term found among the XPaths
- *                                exact => Whether to search for exactly that string, default
+ *                                searchRelation => Whether to search for exactly that string, default
  *                                         is to just search for the string anywhere in the
  *                                         specified tags.
  *                                startRecord => limited search starting at this position
@@ -491,9 +491,9 @@ public function sqlForXPath($table, $xpath, $options = NULL) {
                $query .= "(ndx.txt = '$q' OR ndx.txt = '$qEnc') ";
             } elseif (isset($options["searchRelation"]) && $options["searchRelation"] === SRUFromMysqlBase::STARTS_WITH) {
                $query .= "(ndx.txt LIKE '$q%' OR ndx.txt LIKE '$qEnc%') ";
-            } elseif (isset($options["endsWith"]) && $options["endsWith"] === true) {
+            } elseif (isset($options["searchRelation"]) && $options["searchRelation"] === SRUFromMysqlBase::ENDS_WITH) {
                $query .= "(ndx.txt LIKE '%$q' OR ndx.txt LIKE '%$qEnc') ";
-            } elseif ($q !== '') {
+            } elseif (($q !== '') && (isset($options["searchRelation"]) && $options["searchRelation"] === SRUFromMysqlBase::CONTAINS)) {
                $query .= "(ndx.txt LIKE '%$q%' OR ndx.txt LIKE '%$qEnc%') ";
             } else {
                $query .= "ndx.txt LIKE '%' ";
@@ -597,9 +597,9 @@ protected function generateXPathPrefilter($table, &$options) {
         $colname = 'f'.(string)$filternum;
         
         if ($condition === null) {
-            if (isset($options['startsWith']) && $options['startsWith'] === true) {
+            if (isset($options['searchRelation']) && $options['searchRelation'] === SRUFromMysqlBase::STARTS_WITH) {
                 $havingCondition = ' LIKE \''.$options["query"].'%\'';           
-            } elseif (isset($options['startsWith']) && $options['startsWith'] === true) {
+            } elseif (isset($options['searchRelation']) && $options['searchRelation'] === SRUFromMysqlBase::ENDS_WITH) {
                 $havingCondition = ' LIKE %'.$options["query"];
             } else {
                 $havingCondition = '!= \'\'';
@@ -613,7 +613,7 @@ protected function generateXPathPrefilter($table, &$options) {
                 $colname = 'txt';
                 if ($q === '') {
                     $predicate = ''; 
-                } elseif (isset($options['exact']) and ($options['exact'] === true)) {
+                } elseif (isset($options['searchRelation']) and ($options['searchRelation'] === SRUFromMysqlBase::EXACT)) {
                     $predicate = "[.=\"$q\"]"; 
                 } else {
                     $predicate = "[contains(., \"$q\")]"; 

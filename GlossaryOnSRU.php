@@ -338,11 +338,13 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
             $query = $this->db->escape_string($splittetSearchClause['searchString']);
             $searchResult = $this->getSearchResult(preg_replace('/\?/', $query, $indexDescription['sqlStrSearch']), $indexDescription['title']);
         } else {
+            $this->options["searchRelation"] = $this->parseStarAndRemove($splittetSearchClause,
+                    (isset($indexDescription['exactOnly']) && ($indexDescription['exactOnly'] === true) ?
+                    SRUFromMysqlBase::EXACT :
+                    $this->operatorToStringSearchRelation($splittetSearchClause['operator'])
+                    ));
             $this->options["query"] = $this->db->escape_string($splittetSearchClause['searchString']);
             $this->options["xpath"] = $indexDescription['filter'];
-            $this->options["searchRelation"] = isset($indexDescription['exactOnly']) && $indexDescription['exactOnly'] === true ?
-                    $this->operatorToStringSearchRelation($splittetSearchClause['operator']) :
-                    SRUFromMysqlBase::EXACT;
             $this->options["dbtable"] = $glossTable;
 
             $searchResult = $this->getSearchResult($this->options, "Glossary for " . $this->options["query"], new glossaryComparatorFactory($this->options["query"]));
