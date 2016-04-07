@@ -1089,59 +1089,47 @@ protected function processSearchResult($line) {
     // Note: just a dummy, not called by default.
     return $line[1];    
 }
+/**
+ *
+ * @uses string $scanTemplate
+ * @uses integer $chacheScanResultForSeconds
+ * @param string $sqlstr
+ * @param string $entry
+ * @param integer $searchRelation
+ * @param boolean $isNumber
+ * @return string
+ */
 protected function getScanResult($sqlstr, $entry = NULL, $searchRelation = SRUFromMysqlBase::STARTS_WITH, $isNumber = false) {
     if ($this->scanTemplateFilename === '') {
         global $scanTemplate;
         $this->scanTemplateFilename = $scanTemplate; 
     }
+    global $chacheScanResultForSeconds;
         
     $maximumTerms = $this->params->maximumTerms;
-                
-    $result = $this->db->query($sqlstr);
-    if ($result !== FALSE) {
-        $numberOfRecords = $result->num_rows;
-
+    
+    $cache_key = hash('sha256', $sqlstr);
+    if (function_exists('apc_fetch') || ini_get('apc.enabled')) {
+#        5.1.0 -> PHP 7
+#        $sortedTerms = apcu_entry($cache_key, function() use ($sqlstr, $isNumber){
+#            return $this->fetchSortedArrayFromDB($sqlstr, $isNumber);            
+#        }, $chacheScanResultForSeconds);$this->fetchSortedArrayFromDB($sqlstr, $isNumber);
+#        4.0.10 -> PHP 5.x
+        $sortedTerms = apc_fetch($cache_key);
+        if ($sortedTerms === FALSE) {
+            $sortedTerms = $this->fetchSortedArrayFromDB($sqlstr, $isNumber);
+            apc_store($cache_key, $sortedTerms, $chacheScanResultForSeconds);
+        }
+    } else {
+        $sortedTerms = $this->fetchSortedArrayFromDB($sqlstr, $isNumber);
+    }
+    if ($sortedTerms !== NULL) {
+       
         ErrorOrWarningException::$code_has_known_errors = true;
         $tmpl = new vlibTemplate($this->scanTemplateFilename);
         ErrorOrWarningException::$code_has_known_errors = false;
-
-        $terms = new \SplFixedArray($result->num_rows);
-        $i = 0;
-        while (($row = $result->fetch_array()) !== NULL) {
-            $entry_count = isset($row["COUNT(*)"]) ? $row["COUNT(*)"]: 1;
-            $term = array(
-                'value' => $this->decodecharrefs($row[0]),
-                'numberOfRecords' => $entry_count,
-// may be useful for debugging
-//                'sid' => $row['sid'],
-//                'idx' => $i,
-//                'rawValue' => $row[0],
-            );
-            // for sorting ignore some punctation marks etc.
-            $term["sortValue"] = trim(preg_replace('/[?¿!¡()*,."„“\\-\\/|=]/u', '', mb_strtoupper($term["value"], 'UTF-8')));
-            $term["sortValue"] = preg_replace('/^Ä/u', 'AzA', $term["sortValue"]);
-            $term["sortValue"] = preg_replace('/^Ü/u', 'UzU', $term["sortValue"]);
-            $term["sortValue"] = preg_replace('/^Ö/u', 'OzO', $term["sortValue"]);
-            // mixes the rest of the diacritic characters with their base parts.
-            $term["sortValue"] = $this->remove_accents($term["sortValue"]);
-            // sort strings that start with numbers at the back.
-            $term["sortValue"] = preg_replace('/^(\d)/u', 'zz${1}', $term["sortValue"]);
-            // only punctation marks or nothing at all last.
-            if ($term["sortValue"] === "") {
-                $term["sortValue"] = "zzz";
-            }
-            if (isset($row["lemma"]) && $this->decodecharrefs($row["lemma"]) !== $term["value"]) {
-                $term["displayTerm"] = $this->decodecharrefs($row["lemma"]);
-            }
-            $terms[$i++] = $term;
-        }
-        $sortedTerms = $terms->toArray();
-        if (!$isNumber) {
-            usort($sortedTerms, function ($a, $b) {
-                $ret = strcmp($a["sortValue"], $b["sortValue"]);
-                return $ret;
-            });
-        }
+        
+        $numberOfRecords = count($sortedTerms);
         
         if (($this->params->xfilter !== false) && ($this->params->xfilter !== '')) {
             $options = array();
@@ -1202,8 +1190,9 @@ protected function getScanResult($sqlstr, $entry = NULL, $searchRelation = SRUFr
         $endPosition = min($position + $maximumTerms - 1, count($sortedTerms));
         while ($i < $endPosition){
             $sortedTerms[$i]['value'] = htmlentities($sortedTerms[$i]['value'], ENT_XML1);
-            if (isset($sortedTerms[$i]['displayTerm']))
+            if (isset($sortedTerms[$i]['displayTerm'])) {
                 $sortedTerms[$i]['displayTerm'] = htmlentities($sortedTerms[$i]['displayTerm'], ENT_XML1);
+            } 
             array_push($shortList, $sortedTerms[$i]);
             if (!isset($shortList[$i - $position + 1]["position"])) {
                 $shortList[$i - $position + 1]["position"] = $i + 1;            
@@ -1232,6 +1221,51 @@ protected function getScanResult($sqlstr, $entry = NULL, $searchRelation = SRUFr
         $this->errorDiagnostics = new SRUdiagnostics(1, 'MySQL query error: Query was: ' . $sqlstr);
         return '';
     }
+}
+
+private function fetchSortedArrayFromDB($sqlstr, $isNumber = false) {
+
+    $result = $this->db->query($sqlstr);
+    if ($result !== FALSE) {        
+        $terms = new \SplFixedArray($result->num_rows);
+        $i = 0;
+        while (($row = $result->fetch_array()) !== NULL) {
+            $entry_count = isset($row["COUNT(*)"]) ? $row["COUNT(*)"]: 1;
+            $term = array(
+                'value' => $this->decodecharrefs($row[0]),
+                'numberOfRecords' => $entry_count,
+// may be useful for debugging
+//                'sid' => $row['sid'],
+//                'idx' => $i,
+//                'rawValue' => $row[0],
+            );
+            // for sorting ignore some punctation marks etc.
+            $term["sortValue"] = trim(preg_replace('/[?¿!¡()*,."„“\\-\\/|=]/u', '', mb_strtoupper($term["value"], 'UTF-8')));
+            $term["sortValue"] = preg_replace('/^Ä/u', 'AzA', $term["sortValue"]);
+            $term["sortValue"] = preg_replace('/^Ü/u', 'UzU', $term["sortValue"]);
+            $term["sortValue"] = preg_replace('/^Ö/u', 'OzO', $term["sortValue"]);
+            // mixes the rest of the diacritic characters with their base parts.
+            $term["sortValue"] = $this->remove_accents($term["sortValue"]);
+            // sort strings that start with numbers at the back.
+            $term["sortValue"] = preg_replace('/^(\d)/u', 'zz${1}', $term["sortValue"]);
+            // only punctation marks or nothing at all last.
+            if ($term["sortValue"] === "") {
+                $term["sortValue"] = "zzz";
+            }
+            if (isset($row["lemma"]) && $this->decodecharrefs($row["lemma"]) !== $term["value"]) {
+                $term["displayTerm"] = $this->decodecharrefs($row["lemma"]);
+            }
+            $terms[$i++] = $term;
+        }
+        $sortedTerms = $terms->toArray();
+        if (!$isNumber) {
+            usort($sortedTerms, function ($a, $b) {
+                $ret = strcmp($a["sortValue"], $b["sortValue"]);
+                return $ret;
+            });
+        }
+    }
+    return $sortedTerms;
 }
 /**
  * Execute a scan and return the result using the $scanTemplate
