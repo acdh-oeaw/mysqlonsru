@@ -81,7 +81,7 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
             'search' => 'true',
             'scan' => 'true',
             'sort' => 'false',
-            'filter' => '-quote-'
+            'filter' => '/%cit/sense%[@type="translation"]%[@xml:lang=%'
         ));
         
         foreach (array(
@@ -96,10 +96,7 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
                 'search' => 'true',
                 'scan' => 'true',
                 'sort' => 'false',
-                'filter' => "",
-                'xpath-filters' => array(
-                    "//cit[@xml:lang=\"$lang\"]//text()" => null
-                )
+                'filter' => "/%cit/sense%[@type=\"translation\"]%[@xml:lang=\"$lang\"]%",
             ));
         }
         
@@ -133,10 +130,7 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
             'search' => 'true',
             'scan' => 'true',
             'sort' => 'false',
-            'filter' => '',
-            'xpath-filters' => array(
-                '//form[@type="inflected"]/orth[position()<3]' => null
-            )
+            'filter' => '/%form%[@type="inflected"]%',
         ));       
         
         array_push($this->indices, array(
@@ -146,7 +140,7 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
             'scan' => 'true',
             'sort' => 'false',
             'exactOnly' => true,
-            'filter' => '-bibl-%Course-',
+            'filter' => '/%bibl%Course%',
         ));
 
         array_push($this->indices, array(
