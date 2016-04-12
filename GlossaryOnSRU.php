@@ -81,7 +81,7 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
             'search' => 'true',
             'scan' => 'true',
             'sort' => 'false',
-            'filter' => '/%cit/sense%[@type="translation"]%[@xml:lang=%'
+            'filter' => '/%/sense/cit%[@type="translation"]%[@xml:lang=%'
         ));
         
         foreach (array(
@@ -96,7 +96,7 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
                 'search' => 'true',
                 'scan' => 'true',
                 'sort' => 'false',
-                'filter' => "/%cit/sense%[@type=\"translation\"]%[@xml:lang=\"$lang\"]%",
+                'filter' => "/%/sense/cit%[@type=\"translation\"]%[@xml:lang=\"$lang\"]%",
             ));
         }
         
