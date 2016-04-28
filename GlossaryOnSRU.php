@@ -39,6 +39,7 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
         "ar_de__v001",
         "pes_eng_032",
         "arz_eng_006",
+		"pes_eng_033",
     );
 
     protected $options = array(
@@ -178,10 +179,7 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
             'search' => 'true',
             'scan' => 'true',
             'sort' => 'false',
-            'filter' => '',
-            'xpath-filters' => array(
-                "//form[@type=\"lemma\" or @type=\"multiUnitWord\"]/orth" => null
-            )
+            'filter' => '/%/entry/form[@type=\"lemma\"]/orth%',
         ));
         
         array_push($autocomplete, 'lemma');
