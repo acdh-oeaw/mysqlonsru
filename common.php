@@ -66,20 +66,36 @@ class SRUFromMysqlBase {
     protected $explainTemplateFilename = '';
     protected $scanTemplateFilename = '';
     protected $responseTemplateFilename = '';
+    protected $dbTableName = '';
     
     protected $errors_array = array();
 
     public function __construct(SRUWithFCSParameters $params = null) {
+        $this->getLocalOrGlobalParams($params);
+        $this->indices = array(
+            array(
+            'title' => 'Resource Fragement PID',
+            'name' => 'rfpid',
+            'search' => 'true',
+            'scan' => 'true',
+            'sort' => 'false',
+            'exactOnly' => 'true',
+            'sqlStrScan' => "SELECT id, entry, sid FROM $this->dbTableName ORDER BY CAST(id AS SIGNED)",
+            'sqlStrSearch' => "SELECT id, entry, sid, 1 FROM $this->dbTableName WHERE id='?'",
+            )
+        );
+    }
+    
+    protected function getLocalOrGlobalParams(SRUWithFCSParameters $params = null) {
         if (!isset($params)) {
             global $sru_fcs_params;
             $this->params = $sru_fcs_params;
         } else {
             $this->params = $params;
-        }
-        $this->indices = array();
+        }        
     }
-    
-/**
+
+        /**
  * Get a database connection object (currently mysqli)
  * 
  * @uses $server
@@ -89,6 +105,7 @@ class SRUFromMysqlBase {
  * @return \mysqli
  */
 public function db_connect() {
+    if (isset($this->db)) {return $this->db;}
     $server = '';
     $user = '';
     $password = '';
@@ -366,7 +383,19 @@ private $chars_to_accentless_lower;
             return $defaultRealtion;
         }
     }
-
+   
+    protected function getIndexDescription($splittetSearchClause) {       
+        $indexDescription = null;
+        if (in_array($splittetSearchClause['index'], $this->serverChoiceIndexNames)) {
+            $indexDescription = $this->serverChoiceIndex;
+        } else {
+            foreach ($this->indices as $indexDescription) {
+                if ($indexDescription['name'] === $splittetSearchClause['index']) {break;}
+            }
+        }
+        return $indexDescription;
+    }
+    
     protected function parseStarAndRemove(array &$splittetSearchClause, $defaultRealtion = SRUFromMysqlBase::EXACT) {
         $starPos = mb_strrpos($splittetSearchClause['searchString'], '*');
         if ($starPos !== false) {
@@ -488,8 +517,13 @@ public function sqlForXPath($table, $xpath, $options = NULL) {
             $tableNameOrPrefilter = $indexTable;
         }
         if ($xpath !== "") {
+            if (!is_array($xpath)) {
+                $xpaths = explode('|', $xpath);
+            } else {
+                $xpaths = $xpath;
+            }
             $likeXpath .= "(";
-            foreach (explode('|', $xpath) as $xpath) {
+            foreach ($xpaths as $xpath) {
                 $likeXpath .= "ndx.xpath LIKE '%" . $xpath . "' OR ";
             }
             $likeXpath = substr($likeXpath , 0, strrpos($likeXpath, ' OR '));
@@ -1100,6 +1134,9 @@ protected function processSearchResult($line) {
  * @return string
  */
 protected function getScanResult($sqlstr, $entry = NULL, $searchRelation = SRUFromMysqlBase::STARTS_WITH, $isNumber = false) {
+    if (is_array($sqlstr)) {
+        return $this->aggregateMultipleScans($sqlstr);
+    }
     if ($this->scanTemplateFilename === '') {
         global $scanTemplate;
         $this->scanTemplateFilename = $scanTemplate; 
@@ -1211,6 +1248,8 @@ protected function getScanResult($sqlstr, $entry = NULL, $searchRelation = SRUFr
         $responsePosition = 0;
         $tmpl->setVar('responsePosition', $responsePosition);
         $tmpl->setVar('maximumTerms', $maximumTerms);
+        $tmpl->setVar('xcontext', $this->params->xcontext);
+        $tmpl->setVar('xfilter', $this->params->xfilter);
         $this->addXDebugErrorsIfExist($tmpl);
 
         ErrorOrWarningException::$code_has_known_errors = true;
@@ -1221,6 +1260,53 @@ protected function getScanResult($sqlstr, $entry = NULL, $searchRelation = SRUFr
         $this->errorDiagnostics = new SRUdiagnostics(1, 'MySQL query error: Query was: ' . $sqlstr);
         return '';
     }
+}
+
+private function aggregateMultipleScans(array $scans) {   
+        $scanClause = $this->findCQLParts();
+        $xmlDoc = new \DOMDocument;
+        $xmlResultDoc = new \DOMDocument;
+        foreach($scans as $partScan) {
+            $scanClause['index'] = $partScan;
+            $indexDescrition = $this->getIndexDescription($scanClause);            
+            $xmlDoc->loadXML($this->scan($scanClause)->getBody());
+            if (!$xmlResultDoc->hasChildNodes()) {
+                $this->registerSRUFCSResultNameSpaces($xmlDoc);
+                $xmlResultDoc->appendChild($xmlResultDoc->importNode($xmlDoc->documentElement, true));
+                $this->registerSRUFCSResultNameSpaces($xmlResultDoc);
+                $resultSearch = new \DOMXPath($xmlResultDoc);
+            } else {
+                $search = new \DOMXPath($xmlDoc);             
+                $terms = $search->query('/sru:scanResponse/sru:terms[1]');
+                $resultTermsNode = $resultSearch->query('/sru:scanResponse/sru:terms[1]')->item(0);
+                foreach($terms as $term) {
+                    $resultTermsNode->appendChild($xmlResultDoc->importNode($term, true));
+                }
+                $countTerms = $search->query('//fcs:countTerms[1]')->item(0)->textContent;
+                $transformedQueryNode = $xmlResultDoc->importNode($search->query('//fcs:transformedQuery[1]')->item(0), true);
+                $resultExtraResponseData = $resultSearch->query('/sru:scanResponse/sru:extraResponseData[1]')->item(0);
+                $resultCountTermsNode = $resultSearch->query('//fcs:countTerms[1]')->item(0);
+                $resultExtraResponseData->appendChild($transformedQueryNode);
+                $resultCountTermsNode->textContent = (int)$countTerms + (int)$resultCountTermsNode->textContent;
+            }
+            $typeLessTerms = $resultSearch->query('//sru:extraTermData[not(cr:type)]');
+            foreach ($typeLessTerms as $typeLessTerm) {
+                $typeNode = $xmlResultDoc->createElementNS('http://aac.ac.at/content_repository', 'cr:type');
+                $label = $xmlResultDoc->createAttribute('l');
+                $label->value = $indexDescrition['title'];
+                $typeNode->appendChild($label);
+                $typeNode->appendChild($xmlResultDoc->createTextNode($partScan));
+                $typeLessTerm->appendChild($typeNode);
+            }
+        }
+        return $xmlResultDoc->saveXML();
+}
+
+private function registerSRUFCSResultNameSpaces(\DOMDocument $xmlDoc) {
+    $xmlDoc->createAttributeNS('http://clarin.eu/fcs/1.0', 'fcs:create-ns');
+    $xmlDoc->createAttributeNS('http://www.loc.gov/zing/srw/', 'sru:create-ns');
+    $xmlDoc->createAttributeNS('http://aac.ac.at/content_repository', 'cr:create-ns');
+    $xmlDoc->createAttributeNS('http://www.loc.gov/zing/srw/diagnostic/', 'diag:create-ns');    
 }
 
 private function fetchSortedArrayFromDB($sqlstr, $isNumber = false) {
@@ -1306,7 +1392,7 @@ public function run() {
     if ($this->db instanceof SRUDiagnostics) {
         return $this->diagnosticsToResponse($this->db);
     }
-    if ($this->db ->connect_errno) {
+    if ($this->db->connect_errno) {
         $ret = $this->errorDiagnostics;
     } else if ($this->params->operation === "explain" || $this->params->operation == "") {
         $ret = $this->explain();

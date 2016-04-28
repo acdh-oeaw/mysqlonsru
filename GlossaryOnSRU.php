@@ -52,16 +52,84 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
     protected $serverChoiceIndex;
             
     public function __construct(SRUWithFCSParameters $params = null) {
-        parent::__construct($params);
-        $this->extendedSearchResultProcessing = true;
+        $this->getLocalOrGlobalParams($params);
+        $glossTable = $this->params->context[0];       
+        $this->dbTableName = $glossTable;
 
         if ($this->params->context[0] === '') {
             throw new ESRUDiagnostics(new SRUDiagnostics(1, 'This script needs to know which resource to use!'));
         }
+        
+        parent::__construct($params);
+        $this->extendedSearchResultProcessing = true;        
 
-        $glossTable = $this->params->context[0];
-
-        $resIdParts = explode("_", $glossTable);
+        $this->db = $this->db_connect();
+        if ($this->db instanceof SRUDiagnostics) {
+            throw new ESRUDiagnostics($this->db);
+        }
+        
+        $indexConfig = $this->getWellKnownTEIPartAsXML($this->dbTableName, 8);
+        
+        if ($indexConfig !== NULL) {
+        
+        $indexes = $indexConfig->query('//queryTemplate[@published]');
+        $converter = new XPath2NdxSqlLikeInterpreter();
+        $data = array();
+        
+        foreach ($indexes as $index) {
+            try {
+                // A breakpoint within this block here trigger a bug
+                // see: http://php.net/manual/en/class.domattr.php#116291
+                $published = $index->attributes->getNamedItem('published')->value;
+                $label = $index->attributes->getNamedItem('label')->value;
+                $descr = $index->attributes->getNamedItem('descr')->value;
+                $xpath = $converter->xpath2NdxSqlLike(trim($index->textContent), $data);
+                // End of bug triggering block.
+            } catch (\ACDH\FCSSRU\ErrorOrWarningException $e) {
+                throw new ESRUDiagnostics(new SRUDiagnostics(1, 'Index definition corrupt.'), $e);
+            }
+            array_push($this->indices, array(
+                'title' => $descr,
+                'name' => $label,
+                'search' => 'true',
+                'scan' => 'true',
+                'sort' => 'false',
+                'filter' => $xpath,
+                'isServerChoice' => $published === 'default'
+            ));
+        }
+        
+        $autocompleteParts = $indexConfig->query('//queryTemplate[@published="autocomplete"]');
+        
+        $autocompleteIndices = array();
+        foreach($autocompleteParts as $part) {
+            array_push($autocompleteIndices, $part->attributes->getNamedItem('label')->value);
+        }
+        array_push($this->indices, array(
+                'title' => 'Autocomplete Source',
+                'name' => 'autocomp',
+                'search' => 'true',
+                'scan' => 'true',
+                'sort' => 'false',
+                'parts' => $autocompleteIndices
+                ));
+        } else {
+            $this->getDefaultIndexes();
+        }
+        
+        $this->indexNames = array_merge($this->indexNames, $this->serverChoiceIndexNames);
+        
+        foreach ($this->indices as $indexDescription) {
+            array_push($this->indexNames, $indexDescription['name']);
+            if (isset($indexDescription['isServerChoice']) && 
+                ($indexDescription['isServerChoice'] === true)) {
+                $this->serverChoiceIndex = $indexDescription;
+            } 
+        }
+    }
+    
+    protected function getDefaultIndexes() {
+        $resIdParts = explode("_", $this->params->context[0]);
         $langId = $this->langId2LangName($resIdParts[0]);
         $transLangId = $this->langId2LangName($resIdParts[1]);
 
@@ -144,17 +212,6 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
         ));
 
         array_push($this->indices, array(
-            'title' => 'Resource Fragement PID',
-            'name' => 'rfpid',
-            'search' => 'true',
-            'scan' => 'true',
-            'sort' => 'false',
-            'exactOnly' => 'true',
-            'sqlStrScan' => "SELECT id, entry, sid FROM $glossTable ORDER BY CAST(id AS SIGNED)",
-            'sqlStrSearch' => "SELECT id, entry, sid, 1 FROM $glossTable WHERE id='?'",
-        ));
-
-        array_push($this->indices, array(
             'title' => 'XML ID',
             'name' => 'xmlid',
             'search' => 'true',
@@ -162,18 +219,8 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
             'sort' => 'false',
             'exactOnly' => true,
             'filter' => '-xml:id',
-            'sqlStrSearch' => "SELECT sid, entry, id, 1 FROM $glossTable WHERE sid='?'",
+            'sqlStrSearch' => "SELECT sid, entry, id, 1 FROM $this->dbTableName WHERE sid='?'",
         ));
-        
-        $this->indexNames = array_merge($this->indexNames, $this->serverChoiceIndexNames);
-        
-        foreach ($this->indices as $indexDescription) {
-            array_push($this->indexNames, $indexDescription['name']);
-            if (isset($indexDescription['isServerChoice']) && 
-                ($indexDescription['isServerChoice'] === true)) {
-                $this->serverChoiceIndex = $indexDescription;
-            } 
-        }
     }
 
     /**
@@ -203,18 +250,6 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
         }
         return $langId;
     }
-    
-    protected function getIndexDescription($splittetSearchClause) {       
-        $indexDescription = null;
-        if (in_array($splittetSearchClause['index'], $this->serverChoiceIndexNames)) {
-            $indexDescription = $this->serverChoiceIndex;
-        } else {
-            foreach ($this->indices as $indexDescription) {
-                if ($indexDescription['name'] === $splittetSearchClause['index']) {break;}
-            }
-        }
-        return $indexDescription;
-    }
 
     /**
      * Lists the entries from the lemma column in the database
@@ -222,9 +257,10 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
      * Lists either the profiles (city names) or the sample texts ([id])
      * 
      * @see http://www.loc.gov/standards/sru/specs/scan.html
+     * @return Response|SRUDiagnostics Response or failure object.
      */
-    public function scan() {       
-        $splittetSearchClause = $this->findCQLParts();
+    public function scan($splittetSearchClause = NULL) {       
+        if ($splittetSearchClause === NULL) { $splittetSearchClause = $this->findCQLParts(); }
         
         if ($splittetSearchClause['index'] === '') { 
             $splittetSearchClause['index'] = $this->params->scanClause;                    
@@ -254,7 +290,12 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
             $searchRelation = SRUFromMysqlBase::EXACT;
             $isNumber = true;
         } else {
-            $sqlstr = $this->sqlForXPath($glossTable, $indexDescription['filter'], $this->options);
+            if (isset($indexDescription['filter'])) {
+                $sqlstr = $this->sqlForXPath($glossTable, $indexDescription['filter'], $this->options);
+            }
+            if (isset($indexDescription['parts'])) {
+                $sqlstr = $indexDescription['parts'];
+            }
             $isNumber = false;
             $searchRelation = SRUFromMysqlBase::STARTS_WITH;
             if (isset($indexDescription['exactOnly']) && ($indexDescription['exactOnly'] === true)) {                
