@@ -113,7 +113,7 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
         array_push($this->indices, array(
                 'title' => 'Autocomplete Source',
                 'name' => 'autocomp',
-                'search' => 'true',
+                'search' => 'false',
                 'scan' => 'true',
                 'sort' => 'false',
                 'parts' => $autocompleteIndices
