@@ -1156,6 +1156,8 @@ protected function getScanResult($sqlstr, $entry = NULL, $searchRelation = SRUFr
         if ($sortedTerms === FALSE) {
             $sortedTerms = $this->fetchSortedArrayFromDB($sqlstr, $isNumber);
             apc_store($cache_key, $sortedTerms, $chacheScanResultForSeconds);
+        } else {
+            $sqlstr = 'Cached: '.$sqlstr;
         }
     } else {
         $sortedTerms = $this->fetchSortedArrayFromDB($sqlstr, $isNumber);

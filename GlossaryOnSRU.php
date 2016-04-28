@@ -491,33 +491,30 @@ class glossarySearchResultComparator extends searchResultComparator {
         $xmlbXPath = new \DOMXPath($xmlb);
         $similarityA = 1;
         $similarityB = 1;
-        foreach ($xmlaXPath->query('//form[@type = "lemma"]/orth|//cit[@type="translation"]/quote|//def') as $node) {
-            $text = $node->textContent;
-            if ($text === $this->query) {
-                $similarityA += 10;
-            } else {
-                $norm = mb_strlen($text) > $this->queryLen ? mb_strlen($text) : $this->queryLen;
-                $ratio = 1 - (\levenshtein($this->query, $text) / $norm);
-                $similarityA *= 1 + $ratio;
-            }
-        }
-        foreach ($xmlbXPath->query('//form[@type = "lemma"]/orth|//cit[@type="translation"]/quote|//def') as $node) {
-            $text = $node->textContent;
-            if ($text === $this->query) {
-                $similarityB += 10;
-            } else {
-                $norm = mb_strlen($text) > $this->queryLen ? mb_strlen($text) : $this->queryLen;
-                $ratio = 1 - (\levenshtein($this->query, $text) / $norm);
-                $similarityB *= 1 + $ratio;
-            }
-        }
+        $this->calculateSimilarity($xmlaXPath, $similarityA);
+        $this->calculateSimilarity($xmlbXPath, $similarityB);
         if ($similarityA === $similarityB)
             return 0;
         if ($similarityA > $similarityB)
             return -1;
         return 1;
     }
-
+    
+    private function calculateSimilarity(\DOMXPath $search, &$similarity) {
+        foreach ($search->query('//form[@type = "lemma" or @type="inflected"]/orth|//cit[@type="translation"]/quote|//def') as $node) {
+            $texts = preg_split('~[,;:.?!]~', $node->textContent);
+            foreach($texts as $text) {
+                $text = trim($text);
+                if ($text === $this->query) {
+                    $similarity += 10;
+                } else {
+                    $norm = mb_strlen($text) > $this->queryLen ? mb_strlen($text) : $this->queryLen;
+                    $ratio = 1 - (\levenshtein($this->query, $text) / $norm);
+                    $similarity *= 1 + $ratio;
+                }
+            }
+        }        
+    }
 }
 if (!isset($runner)) {
     try {
