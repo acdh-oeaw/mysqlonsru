@@ -1310,7 +1310,7 @@ private function registerSRUFCSResultNameSpaces(\DOMDocument $xmlDoc) {
 }
 
 private function fetchSortedArrayFromDB($sqlstr, $isNumber = false) {
-
+    $sortedTerms = array();
     $result = $this->db->query($sqlstr);
     if ($result !== FALSE) {        
         $terms = new \SplFixedArray($result->num_rows);

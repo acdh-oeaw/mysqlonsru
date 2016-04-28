@@ -105,6 +105,10 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
         foreach($autocompleteParts as $part) {
             array_push($autocompleteIndices, $part->attributes->getNamedItem('label')->value);
         }
+        } else {
+            $autocompleteIndices = $this->getDefaultIndexes();
+        }
+        
         array_push($this->indices, array(
                 'title' => 'Autocomplete Source',
                 'name' => 'autocomp',
@@ -113,9 +117,6 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
                 'sort' => 'false',
                 'parts' => $autocompleteIndices
                 ));
-        } else {
-            $this->getDefaultIndexes();
-        }
         
         $this->indexNames = array_merge($this->indexNames, $this->serverChoiceIndexNames);
         
@@ -132,6 +133,8 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
         $resIdParts = explode("_", $this->params->context[0]);
         $langId = $this->langId2LangName($resIdParts[0]);
         $transLangId = $this->langId2LangName($resIdParts[1]);
+        
+        $autocomplete = array();
 
         array_push($this->indices, array(
             'title' => "VICAV $langId - $transLangId any entry",
@@ -166,6 +169,7 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
                 'sort' => 'false',
                 'filter' => "/%/sense/cit%[@type=\"translation\"]%[@xml:lang=\"$lang\"]%",
             ));
+            array_push($autocomplete, "sense-$lang");
         }
         
         array_push($this->indices, array(
@@ -179,6 +183,8 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
                 "//form[@type=\"lemma\" or @type=\"multiUnitWord\"]/orth" => null
             )
         ));
+        
+        array_push($autocomplete, 'lemma');
         
         array_push($this->indices, array(
             'title' => 'POS',
@@ -199,7 +205,9 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
             'scan' => 'true',
             'sort' => 'false',
             'filter' => '/%form%[@type="inflected"]%',
-        ));       
+        ));
+                        
+        array_push($autocomplete, 'inflected');
         
         array_push($this->indices, array(
             'title' => "Language Course $langId - $transLangId unit",
@@ -221,6 +229,8 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
             'filter' => '-xml:id',
             'sqlStrSearch' => "SELECT sid, entry, id, 1 FROM $this->dbTableName WHERE sid='?'",
         ));
+        
+        return $autocomplete;
     }
 
     /**
