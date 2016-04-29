@@ -1279,7 +1279,7 @@ private function aggregateMultipleScans(array $scans) {
                 $resultSearch = new \DOMXPath($xmlResultDoc);
             } else {
                 $search = new \DOMXPath($xmlDoc);             
-                $terms = $search->query('/sru:scanResponse/sru:terms[1]');
+                $terms = $search->query('/sru:scanResponse/sru:terms[1]/sru:term');
                 $resultTermsNode = $resultSearch->query('/sru:scanResponse/sru:terms[1]')->item(0);
                 foreach($terms as $term) {
                     $resultTermsNode->appendChild($xmlResultDoc->importNode($term, true));
