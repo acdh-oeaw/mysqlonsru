@@ -554,9 +554,7 @@ public function sqlForXPath($table, $xpath, $options = NULL) {
 
         $indexTableForJoin = $this->hasOnlyRealXPathFilters($options) ? $tableNameOrPrefilter :
                 "(SELECT ndx.id, ndx.txt FROM " . $tableNameOrPrefilter .
-                " AS ndx $indexTableWhereClause". 
-                // There seems no point in reporting all id + txt if the query did match a lot of txt
-                'GROUP BY ndx.id)';
+                " AS ndx $indexTableWhereClause)";
         // base
         if (isset($options["show-lemma"]) && $options["show-lemma"] === true) {
             $lemma = ", base.lemma";
