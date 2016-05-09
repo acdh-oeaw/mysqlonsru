@@ -354,7 +354,7 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
         $splittetSearchClause = $this->params->queryParts;
                
         if ($splittetSearchClause['searchString'] === '') { 
-            $splittetSearchClause['searchString'] = $this->params->query;
+            $splittetSearchClause['searchString'] = $this->params->getQuery();
             $splittetSearchClause['index'] = '';
         }
         
@@ -363,7 +363,7 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
         }
         
         if (!in_array($splittetSearchClause['index'], $this->indexNames)) {
-            return new SRUdiagnostics(51, 'Result set: ' . $this->params->query);
+            return new SRUdiagnostics(51, 'Result set: ' . $this->params->getQuery());
         }
         
         $indexDescription = $this->getIndexDescription($splittetSearchClause);

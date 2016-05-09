@@ -974,7 +974,7 @@ protected function getSearchResult($sql, $description, $comparatorFactory = NULL
         $tmpl->setVar('numberOfRecords', $numberOfRecords);
         // There is currently no support for limiting the number of results.
         $tmpl->setVar('returnedRecords', $result->num_rows);
-        $tmpl->setVar('query', $this->params->query);
+        $tmpl->setVar('query', $this->params->getQuery());
         $tmpl->setVar('startRecord', $this->params->startRecord);
         $tmpl->setVar('maximumRecords', $this->params->maximumRecords);
         $tmpl->setVar('transformedQuery', str_replace('<', '&lt;', $sql));
