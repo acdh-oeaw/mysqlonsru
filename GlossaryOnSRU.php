@@ -268,7 +268,7 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
      * @return Response|SRUDiagnostics Response or failure object.
      */
     public function scan($splittetSearchClause = NULL) {       
-        if ($splittetSearchClause === NULL) { $splittetSearchClause = $this->findCQLParts(); }
+        if ($splittetSearchClause === NULL) { $splittetSearchClause = $this->params->queryParts; }
         
         if ($splittetSearchClause['index'] === '') { 
             $splittetSearchClause['index'] = $this->params->scanClause;                    
@@ -351,7 +351,7 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
     public function search() {
         // HACK, sql parser? cql.php = GPL -> this GPL too
         
-        $splittetSearchClause = $this->findCQLParts();
+        $splittetSearchClause = $this->params->queryParts;
                
         if ($splittetSearchClause['searchString'] === '') { 
             $splittetSearchClause['searchString'] = $this->params->query;
