@@ -494,7 +494,7 @@ protected function _and($string1, $string2) {
  *                                xpath => Overrides $xpath.                   
  * @return string
  */
-public function sqlForXPath($table, $xpath, $options = NULL) {
+public function sqlForXPath($table, $xpath, $options = NULL, $justWordList = false) {
     $lemma = "";
     $query = "";
     $filter = "";
@@ -583,12 +583,10 @@ public function sqlForXPath($table, $xpath, $options = NULL) {
         }
     }
     
-    /*
-        } else if ($queryparts[0] == "senses") {
-            $querytemplate = "extractvalue(entry,\"//sense/cit[@xml:lang='en']/quote|//wkp:sense/wkp:cit[@xml:lang='en']/wkp:quote\")";
-        } */
     return "SELECT " . $sqlCalcRows .
-            ($justCount ? " COUNT(*) " : " ndx.txt, base.entry, base.sid" . $lemma . $groupCount) .
+            ($justCount ? " COUNT(*) " : " ndx.txt, " .
+                ($justWordList ? "'', ''" : "base.entry, base.sid") .
+            $lemma . $groupCount) .
             " FROM " . $table . " AS base " .
             "INNER JOIN " . $indexTableForJoin . " AS ndx ON base.id = ndx.id WHERE base.id > 700" .
             $groupAndLimit;  
