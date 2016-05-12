@@ -1550,4 +1550,43 @@ class searchResultComparator {
     public function sortSearchResult($a, $b) {
         return 0;
     }
+    
+    private $nonAsciiMap = array();
+    
+    // Convert an UTF-8 encoded string to a single-byte string suitable for
+    // functions such as levenshtein.
+    //
+    // The function simply uses (and updates) a tailored dynamic encoding
+    // (in/out map parameter) where non-ascii characters are remapped to
+    // the range [128-255] in order of appearance.
+    //
+    // Thus it supports up to 128 different multibyte code points max over
+    // the whole set of strings sharing this encoding.
+    //
+    private function utf8_to_extended_ascii($str) {
+        // find all multibyte characters (cf. utf-8 encoding specs)
+        $matches = array();
+        if (!preg_match_all('/[\xC0-\xF7][\x80-\xBF]+/', $str, $matches))
+            return $str; // plain ascii string
+
+            
+        // update the encoding map with the characters not already met
+        // what happens here if there are more than 128 characters in here?
+        foreach ($matches[0] as $mbc)
+            if (!isset($this->nonAsciiMap[$mbc]))
+                $this->nonAsciiMap[$mbc] = chr(128 + count($this->nonAsciiMap));
+            if (count($this->nonAsciiMap) > 127) {
+                throw new \Exception("System error!");
+            }
+
+        // finally remap non-ascii characters
+        return strtr($str, $this->nonAsciiMap);
+    }
+    
+    protected function levenshtein($str1, $str2) {
+        $s1 = $this->utf8_to_extended_ascii($str1);
+        $s2 = $this->utf8_to_extended_ascii($str2);
+        return \levenshtein($s1, $s2);
+    }
+
 }

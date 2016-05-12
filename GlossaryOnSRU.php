@@ -470,6 +470,8 @@ class glossarySearchResultComparator extends searchResultComparator {
     private $query;
     private $queryLen;
     
+    private $calculatedDistances = array();
+    
     public function __construct($query) {
         $this->query = $query;
         $this->queryLen = mb_strlen($query);
@@ -481,18 +483,9 @@ class glossarySearchResultComparator extends searchResultComparator {
      *  https://bugs.php.net/bug.php?id=50688 exception may not be used!
      */
     public function sortSearchResult($a, $b) {
-        $xmla = new \DOMDocument;
-        ErrorOrWarningException::$code_has_known_errors = true;
-        $xmla->loadXML($a['content']);
-        $xmlaXPath = new \DOMXPath($xmla);
-        $xmlb = new \DOMDocument;
-        $xmlb->loadXML($b['content']);
-        ErrorOrWarningException::$code_has_known_errors = false;
-        $xmlbXPath = new \DOMXPath($xmlb);
-        $similarityA = 1;
-        $similarityB = 1;
-        $this->calculateSimilarity($xmlaXPath, $similarityA);
-        $this->calculateSimilarity($xmlbXPath, $similarityB);
+        //$xmlnsPattern = '~xmlns:([^"\']+)["\']([^"\']+)["\']~';
+        $similarityA = $this->calculateSimilarity($a['content']);
+        $similarityB = $this->calculateSimilarity($b['content']);
         if ($similarityA === $similarityB)
             return 0;
         if ($similarityA > $similarityB)
@@ -500,20 +493,47 @@ class glossarySearchResultComparator extends searchResultComparator {
         return 1;
     }
     
-    private function calculateSimilarity(\DOMXPath $search, &$similarity) {
-        foreach ($search->query('//form[@type = "lemma" or @type="inflected"]/orth|//cit[@type="translation"]/quote|//def') as $node) {
-            $texts = preg_split('~[,;:.?!]~', $node->textContent);
+    private function prepareCompareXPathQuery($str) {
+        $namespacedTagsPattern = '~</?[^:> ]+:[^>]+>~';
+        $cleanContent = preg_replace($namespacedTagsPattern, '', $str);
+        $xml = new \DOMDocument;
+        ErrorOrWarningException::$code_has_known_errors = true;
+        $xml->loadXML($cleanContent);
+        $ret = new \DOMXPath($xml);
+        ErrorOrWarningException::$code_has_known_errors = false;
+        return $ret;        
+    }
+    
+    private function calculateSimilarity($entry) {
+        $hash = hash('sha256', $entry);
+        if (isset($this->calculatedDistances[$hash])) {
+            return $this->calculatedDistances[$hash];
+        }
+        $search = $this->prepareCompareXPathQuery($entry);
+        $similarity = 1;
+        foreach ($search->query('//form[@type = "lemma" or @type="multiWordUnit" or @type="inflected"]/orth|//cit[@type="translation"]/quote|//def') as $node) {
+            $wholeStringLength = mb_strlen($node->textContent);
+            $wholeString = $node->textContent;
+            $texts = preg_split('~[,;:.?! ]~', $wholeString, -1, PREG_SPLIT_OFFSET_CAPTURE);
+            $perfectMatchFound = false;
             foreach($texts as $text) {
-                $text = trim($text);
+                $pos = $text[1];
+                $text = trim($text[0]);
+                $stringLength = mb_strlen($text);
                 if ($text === $this->query) {
-                    $similarity += 10;
+                    $similarity += ($pos === 0 ? 10 : 5) * ($stringLength / $wholeStringLength);
+                    $perfectMatchFound = true;
                 } else {
-                    $norm = mb_strlen($text) > $this->queryLen ? mb_strlen($text) : $this->queryLen;
-                    $ratio = 1 - (\levenshtein($this->query, $text) / $norm);
+                    $norm = $wholeStringLength > $this->queryLen ? $wholeStringLength : $this->queryLen;
+                    $lDist = $this->levenshtein($this->query, $wholeString);
+                    $ratio = 1 - ($lDist / $norm);
                     $similarity *= 1 + $ratio;
                 }
             }
-        }        
+            if ($perfectMatchFound) {break;}
+        }
+        $this->calculatedDistances[$hash] = $similarity;
+        return $similarity;        
     }
 }
 if (!isset($runner)) {
