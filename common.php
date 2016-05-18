@@ -631,6 +631,53 @@ protected function genereatePrefilterSql($table, &$options) {
     return $result;
 }
 
+public function scanSqlForXPath($table, $xpath, $options = NULL) {
+    $query = "";
+    $filter = "";
+    $groupAndLimit = " GROUP BY ndx.id";
+    $likeXpath = "";
+    if (isset($options) && is_array($options)) {
+        if ($xpath !== "") {
+            if (!is_array($xpath)) {
+                $xpaths = explode('|', $xpath);
+            } else {
+                $xpaths = $xpath;
+            }
+            $likeXpath .= "(";
+            foreach ($xpaths as $xpath) {
+                $likeXpath .= "ndx.xpath LIKE '%" . $xpath . "' OR ";
+            }
+            $likeXpath = substr($likeXpath , 0, strrpos($likeXpath, ' OR '));
+            $likeXpath .= ')';
+        }
+        // ndx search
+        $indexTable = $table . "_ndx";
+        if (isset($options["xpath-filters"])) {
+            $tableNameOrPrefilter = $this->genereatePrefilterSql($table, $options);
+        } else {
+            $tableNameOrPrefilter = $indexTable;
+        }
+        
+        $indexTableWhereClause = "WHERE ". $this->_and($query, $this->_and($filter, $likeXpath));
+        $indexTableWhereClause = ($indexTableWhereClause === "WHERE ") ? '' : $indexTableWhereClause;
+        
+        $indexTableForJoin = "SELECT ndx.txt, COUNT(*) FROM " . $tableNameOrPrefilter .
+                " AS ndx $indexTableWhereClause";
+        
+        $sqlCalcRows = '';
+        if (isset($options["maximumRecords"]) && $options["maximumRecords"] !== false) {
+            $sqlCalcRows = 'SQL_CALC_FOUND_ROWS';
+            if (isset($options["startRecord"]) && $options["startRecord"] !== false) {
+                $groupAndLimit .= ", " . $options["maximumRecords"];
+            } else {
+                $groupAndLimit .= " LIMIT 0," .  $options["maximumRecords"];
+            }
+        }
+    }
+    
+    return $indexTableForJoin . $groupAndLimit;
+}
+
 private $xPathPrefilter = '';
 
 protected function generateXPathPrefilter($table, &$options) {
@@ -1148,13 +1195,13 @@ protected function getScanResult($sqlstr, $entry = NULL, $searchRelation = SRUFr
 #            return $this->fetchSortedArrayFromDB($sqlstr, $isNumber);            
 #        }, $chacheScanResultForSeconds);$this->fetchSortedArrayFromDB($sqlstr, $isNumber);
 #        4.0.10 -> PHP 5.x
-        $sortedTerms = apc_fetch($cache_key);
-        if ($sortedTerms === FALSE) {
+//        $sortedTerms = apc_fetch($cache_key);
+//        if ($sortedTerms === FALSE) {
             $sortedTerms = $this->fetchSortedArrayFromDB($sqlstr, $isNumber);
-            apc_store($cache_key, $sortedTerms, $chacheScanResultForSeconds);
-        } else {
-            $sqlstr = 'Cached: '.$sqlstr;
-        }
+//            apc_store($cache_key, $sortedTerms, $chacheScanResultForSeconds);
+//        } else {
+//            $sqlstr = 'Cached: '.$sqlstr;
+//        }
     } else {
         $sortedTerms = $this->fetchSortedArrayFromDB($sqlstr, $isNumber);
     }
@@ -1260,7 +1307,8 @@ protected function getScanResult($sqlstr, $entry = NULL, $searchRelation = SRUFr
     }
 }
 
-private function aggregateMultipleScans(array $scans) {   
+private function aggregateMultipleScans(array $scans) {
+        $this->sortUsingPHP = false;
         $scanClause = $this->params->queryParts;
         $xmlDoc = new \DOMDocument;
         $xmlResultDoc = new \DOMDocument;

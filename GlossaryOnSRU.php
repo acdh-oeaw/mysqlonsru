@@ -299,7 +299,7 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
             $isNumber = true;
         } else {
             if (isset($indexDescription['filter'])) {
-                $sqlstr = $this->sqlForXPath($glossTable, $indexDescription['filter'], $this->options, true);
+                $sqlstr = $this->scanSqlForXPath($glossTable, $indexDescription['filter'], $this->options);
             }
             if (isset($indexDescription['parts'])) {
                 $sqlstr = $indexDescription['parts'];
