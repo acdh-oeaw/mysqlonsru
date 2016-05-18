@@ -634,7 +634,7 @@ protected function genereatePrefilterSql($table, &$options) {
 public function scanSqlForXPath($table, $xpath, $options = NULL) {
     $query = "";
     $filter = "";
-    $groupAndLimit = " GROUP BY ndx.id";
+    $groupAndLimit = " GROUP BY ndx.txt";
     $likeXpath = "";
     if (isset($options) && is_array($options)) {
         if ($xpath !== "") {
@@ -1308,7 +1308,6 @@ protected function getScanResult($sqlstr, $entry = NULL, $searchRelation = SRUFr
 }
 
 private function aggregateMultipleScans(array $scans) {
-        $this->sortUsingPHP = false;
         $scanClause = $this->params->queryParts;
         $xmlDoc = new \DOMDocument;
         $xmlResultDoc = new \DOMDocument;
