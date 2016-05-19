@@ -28,6 +28,14 @@ use ACDH\FCSSRU\SRUWithFCSParameters;
 
 class SRUFromMysqlBase {
     /**
+     * To speed up scan generation position in the stable list a scan has
+     * to produce can be ignored.
+     * That allows for additional SQL side optimizations.
+     * @var boolean
+     */
+    private $ignorePosition = false;
+    
+    /**
      * Whether processSearchResult is called.
      * @var boolean
      */
@@ -614,13 +622,13 @@ protected function genereatePrefilterSql($table, &$options) {
     }
     $indexTable = $table.'_ndx';
     $xpathToSearchIn = key($options["xpath-filters"]);
-        if (is_array(current($options["xpath-filters"]))) {
-            $p = $this->parseFilterSpecs(current($options["xpath-filters"]));
-            $whereClause = "CAST(inner.txt AS ".$p['as'].") ".$p['op']." ".$p['value']." ";
-        } else {
-            $whereClause = "inner.txt = '" . current($options["xpath-filters"]) . "' ";
-        }
-        $innerSql = "(SELECT inner.id, inner.txt FROM $indexTable AS `inner` WHERE ". 
+    if (is_array(current($options["xpath-filters"]))) {
+        $p = $this->parseFilterSpecs(current($options["xpath-filters"]));
+        $whereClause = "CAST(inner.txt AS ".$p['as'].") ".$p['op']." ".$p['value']." ";
+    } else {
+        $whereClause = "inner.txt = '" . current($options["xpath-filters"]) . "' ";
+    }
+    $innerSql = "(SELECT inner.id, inner.txt FROM $indexTable AS `inner` WHERE ". 
                    $whereClause .
                     "AND inner.xpath LIKE '%$xpathToSearchIn')";
     $result = $this->hasOnlyRealXPathFilters($options) ? $tableOrPrefilter :
@@ -637,6 +645,13 @@ public function scanSqlForXPath($table, $xpath, $options = NULL) {
     $groupAndLimit = " GROUP BY ndx.txt";
     $likeXpath = "";
     if (isset($options) && is_array($options)) {
+        if ($this->ignorePosition) {
+            $filterLike = str_replace('*', '%', $this->params->xfilter);
+            $filterLike = strpos($filter, '%') === false ? $filterLike . '%' : $filterLike;
+            if ($filterLike !== '%') {
+                $filter = 'ndx.txt LIKE "' . $filterLike . '"';
+            }
+        }
         if ($xpath !== "") {
             if (!is_array($xpath)) {
                 $xpaths = explode('|', $xpath);
@@ -1276,8 +1291,12 @@ protected function getScanResult($sqlstr, $entry = NULL, $searchRelation = SRUFr
                 $sortedTerms[$i]['displayTerm'] = htmlentities($sortedTerms[$i]['displayTerm'], ENT_XML1);
             } 
             array_push($shortList, $sortedTerms[$i]);
-            if (!isset($shortList[$i - $position + 1]["position"])) {
-                $shortList[$i - $position + 1]["position"] = $i + 1;            
+            if ($this->ignorePosition) {
+               $shortList[$i - $position + 1]["position"] = -1; 
+            } else {
+                if (!isset($shortList[$i - $position + 1]["position"])) {
+                    $shortList[$i - $position + 1]["position"] = $i + 1;            
+                }
             }
             $i++;
         }
@@ -1308,6 +1327,8 @@ protected function getScanResult($sqlstr, $entry = NULL, $searchRelation = SRUFr
 }
 
 private function aggregateMultipleScans(array $scans) {
+        // for speed reasons in autocomplete
+        $this->ignorePosition = true;
         $scanClause = $this->params->queryParts;
         $xmlDoc = new \DOMDocument;
         $xmlResultDoc = new \DOMDocument;
