@@ -577,7 +577,7 @@ public function sqlForXPath($table, $xpath, $options = NULL, $justWordList = fal
             $groupCount = ", COUNT(*)";
             $groupAndLimit .= " GROUP BY base.sid";
         }
-        $groupAndLimit .= " ORDER BY ndx.weight DESC"; // kil
+        $groupAndLimit .= " ORDER BY ndx.weight DESC, base.lemma ASC";
         if (isset($options["startRecord"]) && $options["startRecord"] !== false) {
             $groupAndLimit .= " LIMIT " . ($options["startRecord"] - 1);
         }
