@@ -561,7 +561,7 @@ public function sqlForXPath($table, $xpath, $options = NULL, $justWordList = fal
         $indexTableWhereClause = ($indexTableWhereClause === "WHERE ") ? '' : $indexTableWhereClause;
 
         $indexTableForJoin = $this->hasOnlyRealXPathFilters($options) ? $tableNameOrPrefilter :
-                "(SELECT ndx.id, ndx.txt FROM " . $tableNameOrPrefilter .
+                "(SELECT ndx.id, ndx.txt, ndx.weight FROM " . $tableNameOrPrefilter . // kil
                 " AS ndx $indexTableWhereClause)";
         // base
         if (isset($options["show-lemma"]) && $options["show-lemma"] === true) {
@@ -577,6 +577,7 @@ public function sqlForXPath($table, $xpath, $options = NULL, $justWordList = fal
             $groupCount = ", COUNT(*)";
             $groupAndLimit .= " GROUP BY base.sid";
         }
+        $groupAndLimit .= " ORDER BY ndx.weight DESC"; // kil
         if (isset($options["startRecord"]) && $options["startRecord"] !== false) {
             $groupAndLimit .= " LIMIT " . ($options["startRecord"] - 1);
         }
@@ -632,7 +633,7 @@ protected function genereatePrefilterSql($table, &$options) {
                    $whereClause .
                     "AND inner.xpath LIKE '%$xpathToSearchIn')";
     $result = $this->hasOnlyRealXPathFilters($options) ? $tableOrPrefilter :
-            "(SELECT tab.id, tab.xpath, tab.txt FROM $tableOrPrefilter AS tab ".
+            "(SELECT tab.id, tab.xpath, tab.txt, tab.weight FROM $tableOrPrefilter AS tab ".
             "INNER JOIN " .
             $innerSql." AS prefid ". 
             "ON tab.id = prefid.id $filter)";
