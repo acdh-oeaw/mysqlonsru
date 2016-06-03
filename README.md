@@ -21,9 +21,9 @@ data into the database.
 * A [subclass of the latter that handles glossaries that are filtered by some fixed criteria](https://github.com/acdh-oeaw/mysqlonsru/blob/master/FilteredGlossaryOnSRU.php)
 (e. g. the vocabulary that is part of some languages course)
 * Some pseudo subclasses for handling other types of data sources:
-** [Bibliographic entries](https://github.com/acdh-oeaw/mysqlonsru/blob/master/BibliographyOnSRU.php)
-** [Language profiles](https://github.com/acdh-oeaw/mysqlonsru/blob/master/ProfileOnSRU.php) for some geographical region
-** [Sample texts](https://github.com/acdh-oeaw/mysqlonsru/blob/master/SampleTextOnSRU.php)
+ * [Bibliographic entries](https://github.com/acdh-oeaw/mysqlonsru/blob/master/BibliographyOnSRU.php)
+ * [Language profiles](https://github.com/acdh-oeaw/mysqlonsru/blob/master/ProfileOnSRU.php) for some geographical region
+ * [Sample texts](https://github.com/acdh-oeaw/mysqlonsru/blob/master/SampleTextOnSRU.php)
 * A [class that translates not to complex XPaths into a LIKE clause](https://github.com/acdh-oeaw/mysqlonsru/blob/master/XPath2NdxSqlLikeInterpreter.php)
 that can be used to look up that XPath in a specialised DB table.
 
