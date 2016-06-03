@@ -33,5 +33,5 @@ Depends on [vLIB](https://github.com/acdh-oeaw/vLIB) and [utils-php](https://git
 
 ## More docs
 
-* [TODO](https://github.com/acdh-oeaw/utils-php/blob/master/docs/TODO.md)
-* [Design](https://github.com/acdh-oeaw/utils-php/blob/master/docs/Design.md): A document about design decissions.
+* [TODO](https://github.com/acdh-oeaw/mysqlonsru/blob/master/docs/TODO.md)
+* [Design](https://github.com/acdh-oeaw/mysqlonsru/blob/master/docs/Design.md): A document about design decissions.
