@@ -12,3 +12,12 @@ Nonetheless the statements proved to be fast enough unless there was some corner
 This enables the creator of some dictionary like collection to specify indexes she sees fit.
 This makes any assumptions on the complexity of the "filters" impossible. Users can break the
 search for some index. There is a default setting if no settings are in the DB table.
+
+## Sorting results
+
+Sorting results for transcribed languages has its own set of rules that are not incorporated as
+collation into any DB. The collations provided mostly don't fit. The "non collation" bin also has
+awkward effects. So the soting was implemented in PHP. That leads to a new problem: There is no
+way to limit the results the DB has to return to a sane amount. So now bin collation is used again
+for the special autocomp index. That unfortunately prevents "fuzzy search" (e. g. search for g, get
+results with g, G, ž, ǧ, ġ, etc.)
