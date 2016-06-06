@@ -28,7 +28,7 @@ We don't use MySQLs XPath capabilities right now. They don't work for us. [There
 which documents we tried. It was difficult to make up for
 [the limitations](http://dev.mysql.com/doc/refman/5.7/en/xml-functions.html) (search for
 "XPath Limitations"). What makes it useless for us for now is the fact that
-with our current version of teh DB (MariaDB 5.5) we cannot tokenize the results
+with our current version of the DB (MariaDB 5.5) we cannot tokenize the results
 on the fly we may get using XPath expresseion. This could be solved by a full-text
 search on the ExtractValues result. Seems this at least needs the creation
 of a temporary table, full-text indexing can not be done on the fly.
