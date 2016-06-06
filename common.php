@@ -100,6 +100,8 @@ class SRUFromMysqlBase {
     protected $responseTemplateFilename = '';
     protected $dbTableName = '';
     
+    protected $ndxHasWeight = false;
+    
     protected $errors_array = array();
 
     public function __construct(SRUWithFCSParameters $params = null) {
@@ -157,11 +159,20 @@ public function db_connect() {
         $this->errorDiagnostics = new SRUDiagnostics(1, 'MySQL Connection Error: Failed to connect to database: (' . $this->db->connect_errno . ") " . $this->db->connect_error);
     }
     $this->db->set_charset('utf8');
-    $this->db->query("SET character_set_results = 'utf8',"
-            . " character_set_client = 'utf8',"
-            . " character_set_connection = 'utf8',"
-            . " character_set_database = 'utf8',"
-            . " character_set_server = 'utf8'");
+    $this->db->query("SET character_set_results = 'utf8mb4',"
+            . " character_set_client = 'utf8mb4',"
+            . " character_set_connection = 'utf8mb4',"
+            . " character_set_database = 'utf8mb4',"
+            . " character_set_server = 'utf8mb4'");
+  
+    $dbres = $this->db->query("SELECT * "
+           . "FROM information_schema.COLUMNS "
+           . "WHERE "
+             . "TABLE_SCHEMA = '$database' "
+             . "AND TABLE_NAME = '$this->dbTableName"."_ndx'" 
+             . "AND COLUMN_NAME = 'weight'");
+    $this->ndxHasWeight = $dbres->num_rows === 1;
+    
     return $this->db;
 }
 
@@ -534,6 +545,8 @@ public function sqlForXPath($table, $xpath, $options = NULL, $justWordList = fal
     $groupCount = "";
     $likeXpath = "";
     $justCount = false;
+    $ndx_weight = "";
+    $ndx_weight_desc = "";
     if (isset($options) && is_array($options)) {
         if (isset($options["dbtable"])) {
             $table = $options["dbtable"];
@@ -583,9 +596,14 @@ public function sqlForXPath($table, $xpath, $options = NULL, $justWordList = fal
         
         $indexTableWhereClause = "WHERE ". $this->_and($query, $this->_and($filter, $likeXpath));
         $indexTableWhereClause = ($indexTableWhereClause === "WHERE ") ? '' : $indexTableWhereClause;
-
+                
+        if ($this->ndxHasWeight) {
+            $ndx_weight = ", ndx.weight";
+            $ndx_weight_desc = "ndx.weight DESC,";
+        }
+        
         $indexTableForJoin = $this->hasOnlyRealXPathFilters($options) ? $tableNameOrPrefilter :
-                "(SELECT ndx.id, ndx.txt, ndx.weight FROM " . $tableNameOrPrefilter . // kil
+                "(SELECT ndx.id, ndx.txt$ndx_weight FROM " . $tableNameOrPrefilter . // kil
                 " AS ndx $indexTableWhereClause)";
         // base
         if (isset($options["show-lemma"]) && $options["show-lemma"] === true) {
@@ -601,7 +619,7 @@ public function sqlForXPath($table, $xpath, $options = NULL, $justWordList = fal
             $groupCount = ", COUNT(*)";
             $groupAndLimit .= " GROUP BY base.sid";
         }
-        $groupAndLimit .= " ORDER BY ndx.weight DESC, base.lemma ASC"; // kil
+        $groupAndLimit .= " ORDER BY $ndx_weight_desc base.lemma ASC"; // kil
         if (isset($options["startRecord"]) && $options["startRecord"] !== false) {
             $groupAndLimit .= " LIMIT " . ($options["startRecord"] - 1);
         }
@@ -619,13 +637,14 @@ public function sqlForXPath($table, $xpath, $options = NULL, $justWordList = fal
     return "SELECT " . $sqlCalcRows .
             ($justCount ? " COUNT(*) " : " ndx.txt, " .
                 ($justWordList ? "'', ''" : "base.entry, base.sid") .
-            $lemma . $groupCount) . ', ndx.weight' .
+            $lemma . $groupCount) . $ndx_weight .
             " FROM " . $table . " AS base " .
             "INNER JOIN " . $indexTableForJoin . " AS ndx ON base.id = ndx.id WHERE base.id > 700" .
             $groupAndLimit;  
 }
 
-protected function genereatePrefilterSql($table, &$options) {
+protected function genereatePrefilterSql($table, &$options) {    
+    $tab_weight = "";
     $topMostTable = $this->generateXPathPrefilter($table, $options);
     $recursiveOptions = $options;
     // check this now. It's cached so changing xpath-filters doesn't matter.
@@ -656,8 +675,13 @@ protected function genereatePrefilterSql($table, &$options) {
     $innerSql = "(SELECT inner.id, inner.txt FROM $indexTable AS `inner` WHERE ". 
                    $whereClause .
                     "AND inner.xpath LIKE '%$xpathToSearchIn')";
+    
+    if ($this->ndxHasWeight) {
+        $tab_weight = ", tab.weight";
+    }
+    
     $result = $this->hasOnlyRealXPathFilters($options) ? $tableOrPrefilter :
-            "(SELECT tab.id, tab.xpath, tab.txt, tab.weight FROM $tableOrPrefilter AS tab ".
+            "(SELECT tab.id, tab.xpath, tab.txt$tab_weight FROM $tableOrPrefilter AS tab ".
             "INNER JOIN " .
             $innerSql." AS prefid ". 
             "ON tab.id = prefid.id $filter)";
@@ -1078,7 +1102,7 @@ protected function getSearchResult($sql, $description, $comparatorFactory = NULL
 //        array_push($hitsMetaData, array('key' => 'content', 'value' => $description));
 
         while (($line = $result->fetch_row()) !== NULL) {
-            if (isset($comparatorFactory)) {
+            if ($this->ndxHasWeight && isset($comparatorFactory)) {
                 // check that there is some meaningful weight. 
                 if ($line[4] > 1) {
                     // disable sorting
@@ -1102,7 +1126,7 @@ protected function getSearchResult($sql, $description, $comparatorFactory = NULL
                         $title .= $node->textContent;
                     }
                 }
-                if ($title === "") {
+                if ($title === "" && isset($dbTeiHeaderXML)) {
                     foreach ($dbTeiHeaderXML->query('//teiHeader/fileDesc/titleStmt/title') as $node) {
                         $title .= $node->textContent;
                     }
