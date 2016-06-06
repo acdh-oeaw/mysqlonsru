@@ -601,7 +601,7 @@ public function sqlForXPath($table, $xpath, $options = NULL, $justWordList = fal
             $groupCount = ", COUNT(*)";
             $groupAndLimit .= " GROUP BY base.sid";
         }
-        $groupAndLimit .= " ORDER BY ndx.weight DESC, base.lemma ASC";
+        $groupAndLimit .= " ORDER BY ndx.weight DESC, base.lemma ASC"; // kil
         if (isset($options["startRecord"]) && $options["startRecord"] !== false) {
             $groupAndLimit .= " LIMIT " . ($options["startRecord"] - 1);
         }
@@ -1078,9 +1078,12 @@ protected function getSearchResult($sql, $description, $comparatorFactory = NULL
 //        array_push($hitsMetaData, array('key' => 'content', 'value' => $description));
 
         while (($line = $result->fetch_row()) !== NULL) {
-            $weight = $line[4];
-            if ($weight > 1) {
-                $comparatorFactory = null;
+            if (isset($comparatorFactory)) {
+                // check that there is some meaningful weight. 
+                if ($line[4] > 1) {
+                    // disable sorting
+                    $comparatorFactory = null;
+                }
             }
             //$id = $line[0];
             if ($this->extendedSearchResultProcessing === true) {
