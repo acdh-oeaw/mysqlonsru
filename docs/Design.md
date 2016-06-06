@@ -21,3 +21,16 @@ awkward effects. So the soting was implemented in PHP. That leads to a new probl
 way to limit the results the DB has to return to a sane amount. So now bin collation is used again
 for the special autocomp index. That unfortunately prevents "fuzzy search" (e. g. search for g, get
 results with g, G, ž, ǧ, ġ, etc.)
+
+## Not using MySQLs XPath capabilities for now
+
+We don't use MySQLs XPath capabilities right now. They don't work for us. [There is code](https://github.com/acdh-oeaw/mysqlonsru/blob/master/common.php#L765)
+which documents we tried. It was difficult to make up for
+[the limitations](http://dev.mysql.com/doc/refman/5.7/en/xml-functions.html) (search for
+"XPath Limitations"). What makes it useless for us for now is the fact that
+with our current version of the DB (MariaDB 5.5) we cannot tokenize the results
+on the fly we may get using XPath expresseion. This could be solved by a full-text
+search on the ExtractValues result. Seems this at least needs the creation
+of a temporary table, full-text indexing can not be done on the fly.
+This is by the way an entirely unportable feature even though other SQL DBs provide similar
+functionalty but all with their own names and implementations.
