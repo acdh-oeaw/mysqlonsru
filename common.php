@@ -619,7 +619,7 @@ public function sqlForXPath($table, $xpath, $options = NULL, $justWordList = fal
     return "SELECT " . $sqlCalcRows .
             ($justCount ? " COUNT(*) " : " ndx.txt, " .
                 ($justWordList ? "'', ''" : "base.entry, base.sid") .
-            $lemma . $groupCount) .
+            $lemma . $groupCount) . ', ndx.weight' .
             " FROM " . $table . " AS base " .
             "INNER JOIN " . $indexTableForJoin . " AS ndx ON base.id = ndx.id WHERE base.id > 700" .
             $groupAndLimit;  
@@ -1078,6 +1078,10 @@ protected function getSearchResult($sql, $description, $comparatorFactory = NULL
 //        array_push($hitsMetaData, array('key' => 'content', 'value' => $description));
 
         while (($line = $result->fetch_row()) !== NULL) {
+            $weight = $line[4];
+            if ($weight > 1) {
+                $comparatorFactory = null;
+            }
             //$id = $line[0];
             if ($this->extendedSearchResultProcessing === true) {
                 $content = $this->processSearchResult($line);
