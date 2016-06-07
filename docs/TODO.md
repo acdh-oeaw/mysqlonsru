@@ -6,6 +6,8 @@
 * This component relies on global variables for configuration. They should be replaced with something better suited
 * There should be PHPUnit tests
 * Improve the XPath to SQL converter as much as possible
+* Filter the outgoing XML on per entry basis most of the time. There is test data in the database that should not
+be published
 * make use of enhanced (proprietary) SQL to do real XPaht processing or
 * Use the XPath to SQL converter to limit the number of results from the database with some part of the XPath.
 Then use a really XPath aware tool like \DOMXpath to do the rest.
