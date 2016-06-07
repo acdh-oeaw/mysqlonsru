@@ -54,9 +54,9 @@ class FilteredGlossaryOnSRU extends GlossaryOnSRU {
         );
     }
     
-    public function scan() {
+    public function scan($splittetSearchClause = NULL) {
         $this->addFilter();
-        return parent::scan();
+        return parent::scan($splittetSearchClause);
     }
     
     public function search() {
