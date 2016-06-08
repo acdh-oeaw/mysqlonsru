@@ -1203,6 +1203,11 @@ protected function getSearchResult($sql, $description, $comparatorFactory = NULL
  * @param comparatorFactory $comparatorFactory A class that can create a comporator for sorting the result.
  */
 public function populateSearchResult($db, $sql, $description, $comparatorFactory = NULL) {
+    if ($db instanceof SRUDiagnostics) {
+        $this->errorDiagnostics = $db;
+        $this->returnError();
+        return;
+    }
     $this->db = $db;
     $ret = $this->getSearchResult($sql, $description, $comparatorFactory);
     if ($ret !== '') {

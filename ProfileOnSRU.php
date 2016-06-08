@@ -39,7 +39,8 @@
 
 namespace ACDH\FCSSRU\mysqlonsru;
 
-use ACDH\FCSSRU\mysqlonsru\SRUFromMysqlBase;
+use ACDH\FCSSRU\mysqlonsru\SRUFromMysqlBase,
+    ACDH\FCSSRU\SRUDiagnostics;
 
 /**
  * Load configuration and common functions
@@ -201,55 +202,56 @@ public function sampleTextQuery($query) {
     $base = new ProfileOnSRU();
         
     $db = $base->db_connect();
-    if ($db->connect_errno) {
+    if ($db instanceof SRUDiagnostics) {
+        $base->populateSearchResult($db, '', '');
         return;
-    }    
+    }   
     // HACK, sql parser? cql.php = GPL -> this GPL too
-    $sru_fcs_params->query = str_replace("\"", "", $sru_fcs_params->query);
+    $sru_fcs_params->setQuery(str_replace("\"", "", $sru_fcs_params->getQuery()));
     $query = "";
     $description = "";
-    $profile_query = $base->get_search_term_for_wildcard_search("profile", $sru_fcs_params->query);
+    $profile_query = $base->get_search_term_for_wildcard_search("profile", $sru_fcs_params->getQuery());
     if (!isset($profile_query) && (stripos($profileTable, "profile") !== false)) {
-        $profile_query = $base->get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
+        $profile_query = $base->get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->getQuery(), "cql");
     }
-    $geo_query = $base->get_search_term_for_wildcard_search("geo", $sru_fcs_params->query);
-    $profile_query_exact = $base->get_search_term_for_exact_search("profile", $sru_fcs_params->query);
+    $geo_query = $base->get_search_term_for_wildcard_search("geo", $sru_fcs_params->getQuery());
+    $profile_query_exact = $base->get_search_term_for_exact_search("profile", $sru_fcs_params->getQuery());
     if (!isset($profile_query_exact) && (stripos($profileTable, "profile") !== false)) {
-        $profile_query_exact = $base->get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
+        $profile_query_exact = $base->get_search_term_for_exact_search("serverChoice", $sru_fcs_params->getQuery(), "cql");
     }
-    $sampleText_query_exact = $base->get_search_term_for_exact_search("sampleText", $sru_fcs_params->query);
+    $sampleText_query_exact = $base->get_search_term_for_exact_search("sampleText", $sru_fcs_params->getQuery());
     if (!isset($sampleText_query_exact) && (stripos($profileTable, "sampletext") !== false)) {
-        $sampleText_query_exact = $base->get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
+        $sampleText_query_exact = $base->get_search_term_for_exact_search("serverChoice", $sru_fcs_params->getQuery(), "cql");
     }
-    $sampleText_query = $base->get_search_term_for_wildcard_search("sampleText", $sru_fcs_params->query);
+    $sampleText_query = $base->get_search_term_for_wildcard_search("sampleText", $sru_fcs_params->getQuery());
     if (!isset($sampleText_query) && (stripos($profileTable, "sampletext") !== false)) {
-        $sampleText_query = $base->get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
+        $sampleText_query = $base->get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->getQuery(), "cql");
     }    
-    $text_query_exact = $base->get_search_term_for_exact_search("text", $sru_fcs_params->query);
+    $text_query_exact = $base->get_search_term_for_exact_search("text", $sru_fcs_params->getQuery());
     if (!isset($text_query_exact) && (stripos($profileTable, "texts") !== false)) {
-        $text_query_exact = $base->get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
+        $text_query_exact = $base->get_search_term_for_exact_search("serverChoice", $sru_fcs_params->getQuery(), "cql");
     }
-    $text_query = $base->get_search_term_for_wildcard_search("text", $sru_fcs_params->query);
+    $text_query = $base->get_search_term_for_wildcard_search("text", $sru_fcs_params->getQuery());
     if (!isset($text_query) && (stripos($profileTable, "texts") !== false)) {
-        $text_query = $base->get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
+        $text_query = $base->get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->getQuery(), "cql");
     }
-    $metaText_query_exact = $base->get_search_term_for_exact_search("metaText", $sru_fcs_params->query);
+    $metaText_query_exact = $base->get_search_term_for_exact_search("metaText", $sru_fcs_params->getQuery());
     if (!isset($metaText_query_exact) && (stripos($profileTable, "meta") !== false)) {
-        $metaText_query_exact = $base->get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
+        $metaText_query_exact = $base->get_search_term_for_exact_search("serverChoice", $sru_fcs_params->getQuery(), "cql");
     }
-    $metaText_query = $base->get_search_term_for_wildcard_search("metaText", $sru_fcs_params->query);
+    $metaText_query = $base->get_search_term_for_wildcard_search("metaText", $sru_fcs_params->getQuery());
     if (!isset($metaText_query) && (stripos($profileTable, "meta") !== false)) {
-        $metaText_query = $base->get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
+        $metaText_query = $base->get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->getQuery(), "cql");
     }
-    $toolsText_query_exact = $base->get_search_term_for_exact_search("toolsText", $sru_fcs_params->query);
+    $toolsText_query_exact = $base->get_search_term_for_exact_search("toolsText", $sru_fcs_params->getQuery());
     if (!isset($toolsText_query_exact) && (stripos($profileTable, "tools") !== false)) {
-        $toolsText_query_exact = $base->get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
+        $toolsText_query_exact = $base->get_search_term_for_exact_search("serverChoice", $sru_fcs_params->getQuery(), "cql");
     }
-    $toolsText_query = $base->get_search_term_for_wildcard_search("toolsText", $sru_fcs_params->query);
+    $toolsText_query = $base->get_search_term_for_wildcard_search("toolsText", $sru_fcs_params->getQuery());
     if (!isset($toolsText_query) && (stripos($profileTable, "tools") !== false)) {
-        $toolsText_query = $base->get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
+        $toolsText_query = $base->get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->getQuery(), "cql");
     }
-    $geo_query_exact = $base->get_search_term_for_exact_search("geo", $sru_fcs_params->query);
+    $geo_query_exact = $base->get_search_term_for_exact_search("geo", $sru_fcs_params->getQuery());
     // there is no point in having a fuzzy geo search yet so treat it as exact always
     if (!isset($geo_query_exact)) {
         $geo_query_exact = $geo_query;
@@ -260,8 +262,8 @@ public function sampleTextQuery($query) {
        "distinct-values" => false,
     );
  
-    $rfpid_query = $base->get_search_term_for_wildcard_search("rfpid", $sru_fcs_params->query);
-    $rfpid_query_exact = $base->get_search_term_for_exact_search("rfpid", $sru_fcs_params->query);
+    $rfpid_query = $base->get_search_term_for_wildcard_search("rfpid", $sru_fcs_params->getQuery());
+    $rfpid_query_exact = $base->get_search_term_for_exact_search("rfpid", $sru_fcs_params->getQuery());
     if (!isset($rfpid_query_exact)) {
         $rfpid_query_exact = $rfpid_query;
     }
@@ -301,7 +303,7 @@ public function sampleTextQuery($query) {
        } else if (isset($toolsText_query)) {
            $query = $db->escape_string($toolsText_query);
        } else {
-           $query = $db->escape_string($sru_fcs_params->query);
+           $query = $db->escape_string($sru_fcs_params->getQuery());
        }
        $description = "Arabic dialect profile for the region of $query"; 
        $sqlstr = "SELECT DISTINCT id, entry, status FROM $profileTable ";
@@ -340,7 +342,8 @@ function scan() {
     $base = new SRUFromMysqlBase();
         
     $db = $base->db_connect();
-    if ($db->connect_errno) {
+    if ($db instanceof SRUDiagnostics) {
+        $base->populateSearchResult($db, '', '');
         return;
     }
     

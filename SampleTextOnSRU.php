@@ -38,7 +38,8 @@
 //error_reporting(E_ALL);
 namespace ACDH\FCSSRU\mysqlonsru;
 
-use ACDH\FCSSRU\mysqlonsru\SRUFromMysqlBase;
+use ACDH\FCSSRU\mysqlonsru\SRUFromMysqlBase,
+    ACDH\FCSSRU\SRUDiagnostics;
 
 /**
  * Load configuration and common functions
@@ -63,7 +64,8 @@ require_once __DIR__ . "/common.php";
     $base = new SRUFromMysqlBase();
         
     $db = $base->db_connect();
-    if ($db->connect_errno) {
+    if ($db instanceof SRUDiagnostics) {
+        $base->populateSearchResult($db, '', '');
         return;
     }
     
@@ -112,32 +114,33 @@ require_once __DIR__ . "/common.php";
     $base = new SRUFromMysqlBase();
         
     $db = $base->db_connect();
-    if ($db->connect_errno) {
+    if ($db instanceof SRUDiagnostics) {
+        $base->populateSearchResult($db, '', '');
         return;
-    }    
+    }  
     // HACK, sql parser? cql.php = GPL -> this GPL too
-    $sru_fcs_params->query = str_replace("\"", "", $sru_fcs_params->query);
+    $sru_fcs_params->setQuery(str_replace("\"", "", $sru_fcs_params->getQuery()));
     $description = "";
-    $sampleText_query_exact = $base->get_search_term_for_exact_search("sampleText", $sru_fcs_params->query);
+    $sampleText_query_exact = $base->get_search_term_for_exact_search("sampleText", $sru_fcs_params->getQuery());
     if (!isset($sampleText_query_exact) && (stripos($sampleTable, "sampletext") !== false)) {
-        $sampleText_query_exact = $base->get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
+        $sampleText_query_exact = $base->get_search_term_for_exact_search("serverChoice", $sru_fcs_params->getQuery(), "cql");
     }
-    $sampleText_query = $base->get_search_term_for_wildcard_search("sampleText", $sru_fcs_params->query);
+    $sampleText_query = $base->get_search_term_for_wildcard_search("sampleText", $sru_fcs_params->getQuery());
     if (!isset($sampleText_query) && (stripos($sampleTable, "sampletext") !== false)) {
-        $sampleText_query = $base->get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
+        $sampleText_query = $base->get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->getQuery(), "cql");
         if (!isset($sampleText_query)) {
-            $sampleText_query = $sru_fcs_params->query;
+            $sampleText_query = $sru_fcs_params->getQuery();
         }         
     }
-    $lingfeatureText_query_exact = $base->get_search_term_for_exact_search("lingfeature", $sru_fcs_params->query);
+    $lingfeatureText_query_exact = $base->get_search_term_for_exact_search("lingfeature", $sru_fcs_params->getQuery());
     if (!isset($lingfeatureText_query_exact) && (stripos($sampleTable, "lingfeatures") !== false)) {
-        $lingfeatureText_query_exact = $base->get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
+        $lingfeatureText_query_exact = $base->get_search_term_for_exact_search("serverChoice", $sru_fcs_params->getQuery(), "cql");
     }
-    $lingfeatureText_query = $base->get_search_term_for_wildcard_search("lingfeature", $sru_fcs_params->query);
+    $lingfeatureText_query = $base->get_search_term_for_wildcard_search("lingfeature", $sru_fcs_params->getQuery());
     if (!isset($lingfeatureText_query) && (stripos($sampleTable, "lingfeatures") !== false)) {
-        $lingfeatureText_query = $base->get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
+        $lingfeatureText_query = $base->get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->getQuery(), "cql");
         if (!isset($lingfeatureText_query)) {
-            $lingfeatureText_query = $sru_fcs_params->query;
+            $lingfeatureText_query = $sru_fcs_params->getQuery();
         }
     }
     $options = array (
@@ -146,8 +149,8 @@ require_once __DIR__ . "/common.php";
     );     
     
  
-    $rfpid_query = $base->get_search_term_for_wildcard_search("rfpid", $sru_fcs_params->query);
-    $rfpid_query_exact = $base->get_search_term_for_exact_search("rfpid", $sru_fcs_params->query);
+    $rfpid_query = $base->get_search_term_for_wildcard_search("rfpid", $sru_fcs_params->getQuery());
+    $rfpid_query_exact = $base->get_search_term_for_exact_search("rfpid", $sru_fcs_params->getQuery());
     if (!isset($rfpid_query_exact)) {
         $rfpid_query_exact = $rfpid_query;
     }

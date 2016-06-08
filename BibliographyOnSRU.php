@@ -41,7 +41,8 @@
 
 namespace ACDH\FCSSRU\mysqlonsru;
 
-use ACDH\FCSSRU\mysqlonsru\SRUFromMysqlBase;
+use ACDH\FCSSRU\mysqlonsru\SRUFromMysqlBase,
+    ACDH\FCSSRU\SRUDiagnostics;
 
 /**
  * Load configuration and common functions
@@ -126,12 +127,13 @@ require_once __DIR__ . "/common.php";
     $base = new SRUFromMysqlBase();
         
     $db = $base->db_connect();
-    if ($db->connect_errno) {
+    if ($db instanceof SRUDiagnostics) {
+        $base->populateSearchResult($db, '', '');
         return;
     }
     
     // HACK, sql parser? cql.php = GPL -> this GPL too
-    $sru_fcs_params->query = str_replace("\"", "", $sru_fcs_params->query);
+    $sru_fcs_params->setQuery(str_replace("\"", "", $sru_fcs_params->getQuery()));
     $options = array("distinct-values" => false,
        "dbtable" => "vicav_bibl_002",
        "xpath-filters" => array (
@@ -140,22 +142,22 @@ require_once __DIR__ . "/common.php";
        );
     $options["startRecord"] = $sru_fcs_params->startRecord;
     $options["maximumRecords"] = $sru_fcs_params->maximumRecords;
-    $profile_query = $base->get_search_term_for_wildcard_search("id", $sru_fcs_params->query);
+    $profile_query = $base->get_search_term_for_wildcard_search("id", $sru_fcs_params->getQuery());
     if (!isset($profile_query)) {
-        $profile_query = $base->get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->query, "cql");
+        $profile_query = $base->get_search_term_for_wildcard_search("serverChoice", $sru_fcs_params->getQuery(), "cql");
     }
-    $profile_query_exact = $base->get_search_term_for_exact_search("id", $sru_fcs_params->query);
+    $profile_query_exact = $base->get_search_term_for_exact_search("id", $sru_fcs_params->getQuery());
     if (!isset($profile_query_exact)) {
-        $profile_query_exact = $base->get_search_term_for_exact_search("serverChoice", $sru_fcs_params->query, "cql");
+        $profile_query_exact = $base->get_search_term_for_exact_search("serverChoice", $sru_fcs_params->getQuery(), "cql");
     }
-    $vicavTaxonomy_query = $base->get_search_term_for_wildcard_search("vicavTaxonomy", $sru_fcs_params->query);
-    $vicavTaxonomy_query_exact = $base->get_search_term_for_exact_search("vicavTaxonomy", $sru_fcs_params->query);
-    $author_query = $base->get_search_term_for_wildcard_search("author", $sru_fcs_params->query);
-    $author_query_exact = $base->get_search_term_for_exact_search("author", $sru_fcs_params->query);
-    $imprintDate_query_exact = $base->get_search_term_for_exact_search("imprintDate", $sru_fcs_params->query);
+    $vicavTaxonomy_query = $base->get_search_term_for_wildcard_search("vicavTaxonomy", $sru_fcs_params->getQuery());
+    $vicavTaxonomy_query_exact = $base->get_search_term_for_exact_search("vicavTaxonomy", $sru_fcs_params->getQuery());
+    $author_query = $base->get_search_term_for_wildcard_search("author", $sru_fcs_params->getQuery());
+    $author_query_exact = $base->get_search_term_for_exact_search("author", $sru_fcs_params->getQuery());
+    $imprintDate_query_exact = $base->get_search_term_for_exact_search("imprintDate", $sru_fcs_params->getQuery());
     
-    $rfpid_query = $base->get_search_term_for_wildcard_search("rfpid", $sru_fcs_params->query);
-    $rfpid_query_exact = $base->get_search_term_for_exact_search("rfpid", $sru_fcs_params->query);
+    $rfpid_query = $base->get_search_term_for_wildcard_search("rfpid", $sru_fcs_params->getQuery());
+    $rfpid_query_exact = $base->get_search_term_for_exact_search("rfpid", $sru_fcs_params->getQuery());
     if (!isset($rfpid_query_exact)) {
         $rfpid_query_exact = $rfpid_query;
     }
@@ -188,7 +190,7 @@ require_once __DIR__ . "/common.php";
        } else if (isset($profile_query)) {
            $options["query"] = $db->escape_string($profile_query);
        } else {
-           $options["query"] = $db->escape_string($sru_fcs_params->query);
+           $options["query"] = $db->escape_string($sru_fcs_params->getQuery());
        }
        $options["xpath"] = "biblStruct-xml:id";
     }
@@ -211,7 +213,8 @@ function scan() {
     $base = new SRUFromMysqlBase();
         
     $db = $base->db_connect();
-    if ($db->connect_errno) {
+    if ($db instanceof SRUDiagnostics) {
+        $base->populateSearchResult($db, '', '');
         return;
     }
     
