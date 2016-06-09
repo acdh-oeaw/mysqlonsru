@@ -66,7 +66,7 @@ require_once __DIR__ . "/common.php";
         
     $db = $base->db_connect();
     if ($db instanceof SRUDiagnostics) {
-        $base->populateSearchResult($db, '', '');
+        \ACDH\FCSSRU\diagnostics($db);
         return;
     }
     
@@ -116,7 +116,7 @@ require_once __DIR__ . "/common.php";
         
     $db = $base->db_connect();
     if ($db instanceof SRUDiagnostics) {
-        $base->populateSearchResult($db, '', '');
+        \ACDH\FCSSRU\diagnostics($db);
         return;
     }  
     // HACK, sql parser? cql.php = GPL -> this GPL too
@@ -157,7 +157,11 @@ require_once __DIR__ . "/common.php";
     }
     if (isset($rfpid_query_exact)) {
         $query = $db->escape_string($rfpid_query_exact);
-        $base->populateSearchResult($db, "SELECT id, entry, sid, 1 FROM $sampleTable WHERE id=$query", "Resource Fragment for pid");
+        try {
+            $base->populateSearchResult($db, "SELECT id, entry, sid, 1 FROM $sampleTable WHERE id=$query", "Resource Fragment for pid");
+        } catch (ESRUDiagnostics $ex) {
+            \ACDH\FCSSRU\diagnostics($ex->getSRUDiagnostics());
+        }
         return;
     } else if (isset($sampleText_query_exact)) {
         $description = "Arabic sample text $sampleText_query_exact";
@@ -215,9 +219,13 @@ function scan() {
     $sqlstr = '';
     
     if ($sru_fcs_params->scanClause === 'rfpid') {
-       $sqlstr = "SELECT id, entry, sid FROM $sampleTable ORDER BY CAST(id AS SIGNED)";
-       $base->populateScanResult($db, $sqlstr, NULL, true, true);
-       return;
+        $sqlstr = "SELECT id, entry, sid FROM $sampleTable ORDER BY CAST(id AS SIGNED)";
+        try {
+            $base->populateScanResult($db, $sqlstr, NULL, true, true);
+        } catch (ESRUDiagnostics $ex) {
+            \ACDH\FCSSRU\diagnostics($ex->getSRUDiagnostics());
+        }           
+        return;
     }
     if ($sru_fcs_params->scanClause === 'sampleText' ||
         ((stripos($sampleTable, "sample") !== false) &&

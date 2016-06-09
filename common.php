@@ -158,6 +158,7 @@ public function db_connect() {
     }
     if ($this->db->connect_errno) {
         $this->errorDiagnostics = new SRUDiagnostics(1, 'MySQL Connection Error: Failed to connect to database: (' . $this->db->connect_errno . ") " . $this->db->connect_error);
+        return $this->errorDiagnostics;
     }
     $this->db->set_charset('utf8');
     $this->db->query("SET character_set_results = 'utf8mb4',"

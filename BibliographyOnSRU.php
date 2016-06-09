@@ -128,7 +128,7 @@ require_once __DIR__ . "/common.php";
         
     $db = $base->db_connect();
     if ($db instanceof SRUDiagnostics) {
-        $base->populateSearchResult($db, '', '');
+        \ACDH\FCSSRU\diagnostics($db);
         return;
     }
     
@@ -163,7 +163,11 @@ require_once __DIR__ . "/common.php";
     }
     if (isset($rfpid_query_exact)) {
         $query = $db->escape_string($rfpid_query_exact);
-        populateSearchResult($db, "SELECT id, entry, sid, 1 FROM vicav_bibl_002 WHERE id=$query", "Resource Fragment for pid");
+        try {
+            $base->populateSearchResult($db, "SELECT id, entry, sid, 1 FROM vicav_bibl_002 WHERE id=$query", "Resource Fragment for pid");
+        } catch (ESRUDiagnostics $ex) {
+            \ACDH\FCSSRU\diagnostics($ex->getSRUDiagnostics());
+        }
         return;
     } else if (isset($vicavTaxonomy_query_exact)){
         $options["query"] = $db->escape_string($vicavTaxonomy_query_exact);       
@@ -219,16 +223,20 @@ function scan() {
         
     $db = $base->db_connect();
     if ($db instanceof SRUDiagnostics) {
-        $base->populateSearchResult($db, '', '');
+        \ACDH\FCSSRU\diagnostics($db);
         return;
     }
     
     $sqlstr = '';
     
     if ($sru_fcs_params->scanClause === 'rfpid') {
-       $sqlstr = "SELECT id, entry, sid FROM vicav_bibl_002 ORDER BY CAST(id AS SIGNED)";
-       populateScanResult($db, $sqlstr, NULL, true, true);
-       return;
+        $sqlstr = "SELECT id, entry, sid FROM vicav_bibl_002 ORDER BY CAST(id AS SIGNED)";
+        try {
+            $base->populateScanResult($db, $sqlstr, NULL, true, true);
+        } catch (ESRUDiagnostics $ex) {
+            \ACDH\FCSSRU\diagnostics($ex->getSRUDiagnostics());
+        }
+        return;
     }
     if ($sru_fcs_params->scanClause === '' ||
         $sru_fcs_params->scanClause === 'id' ||

@@ -64,7 +64,11 @@ public function populateSampleTextResult($escapedQueryString, $db, $region) {
     $sqlstr.= "WHERE sid " . 
             (strpos($escapedQueryString, '%') !== false ? 'LIKE' : '=') .
             " '$escapedQueryString'";
-    $this->populateSearchResult($db, $sqlstr, $description);
+    try {
+        $this->populateSearchResult($db, $sqlstr, $description);
+    } catch (ESRUDiagnostics $ex) {
+        \ACDH\FCSSRU\diagnostics($ex->getSRUDiagnostics());
+    }
 }
 
 public function getLemmaWhereClause($query) {
@@ -203,7 +207,7 @@ public function sampleTextQuery($query) {
         
     $db = $base->db_connect();
     if ($db instanceof SRUDiagnostics) {
-        $base->populateSearchResult($db, '', '');
+        \ACDH\FCSSRU\diagnostics($db);
         return;
     }   
     // HACK, sql parser? cql.php = GPL -> this GPL too
@@ -269,7 +273,11 @@ public function sampleTextQuery($query) {
     }
     if (isset($rfpid_query_exact)) {
         $query = $db->escape_string($rfpid_query_exact);
-        populateSearchResult($db, "SELECT id, entry, sid, 1 FROM $profileTable WHERE id=$query", "Resource Fragment for pid");
+        try {
+            $base->populateSearchResult($db, "SELECT id, entry, sid, 1 FROM $profileTable WHERE id=$query", "Resource Fragment for pid");    
+        } catch (ESRUDiagnostics $ex) {
+            \ACDH\FCSSRU\diagnostics($ex->getSRUDiagnostics());
+        }
         return;
     } else if (isset($sampleText_query_exact)) {
         $regionGuess = explode('_', $sampleText_query_exact);
@@ -347,16 +355,20 @@ function scan() {
         
     $db = $base->db_connect();
     if ($db instanceof SRUDiagnostics) {
-        $base->populateSearchResult($db, '', '');
+        \ACDH\FCSSRU\diagnostics($db);
         return;
     }
     
     $sqlstr = '';
     
     if ($sru_fcs_params->scanClause === 'rfpid') {
-       $sqlstr = "SELECT id, entry, sid FROM $profileTable ORDER BY CAST(id AS SIGNED)";
-       populateScanResult($db, $sqlstr, NULL, true, true);
-       return;
+        $sqlstr = "SELECT id, entry, sid FROM $profileTable ORDER BY CAST(id AS SIGNED)";
+        try {
+            $base->populateScanResult($db, $sqlstr, NULL, true, true);
+        } catch (ESRUDiagnostics $ex) {
+            \ACDH\FCSSRU\diagnostics($ex->getSRUDiagnostics());
+        }           
+        return;
     }
     if ($sru_fcs_params->scanClause === 'profile' ||
         ((stripos($profileTable, "profile") !== false) &&
