@@ -340,13 +340,13 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
             $scanClause = $splittetSearchClause['searchString']; // a scan clause that is no index cannot be used.
         }
 
-        $scanResult = $this->getScanResult($sqlstr, $scanClause, $searchRelation, $isNumber);
-        if ($scanResult !== '') {
+        try {
+            $scanResult = $this->getScanResult($sqlstr, $scanClause, $searchRelation, $isNumber);
             $ret = new Response();
             $ret->getHeaders()->addHeaders(array('content-type' => 'text/xml; charset=UTF-8'));
             $ret->setContent($scanResult);
-        } else {
-            $ret = $this->errorDiagnostics;
+        } catch (ESRUDiagnostics $ex) {
+            $ret = $ex->getSRUDiagnostics();
         }
         return $ret;
     }
@@ -402,27 +402,27 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
         }
         $this->addReleasedFilter();
         
-        if (isset($indexDescription['sqlStrSearch'])) {
-            $query = $this->db->escape_string($splittetSearchClause['searchString']);
-            $searchResult = $this->getSearchResult(preg_replace('/\?/', $query, $indexDescription['sqlStrSearch']), $indexDescription['title']);
-        } else {
-            $this->options["searchRelation"] = $this->parseStarAndRemove($splittetSearchClause,
-                    (isset($indexDescription['exactOnly']) && ($indexDescription['exactOnly'] === true) ?
-                    SRUFromMysqlBase::EXACT :
-                    $this->operatorToStringSearchRelation($splittetSearchClause['operator'])
-                    ));
-            $this->options["query"] = $this->db->escape_string($splittetSearchClause['searchString']);
-            $this->options["xpath"] = $indexDescription['filter'];
-            $this->options["dbtable"] = $glossTable;
+        try {
+            if (isset($indexDescription['sqlStrSearch'])) {
+                $query = $this->db->escape_string($splittetSearchClause['searchString']);
+                $searchResult = $this->getSearchResult(preg_replace('/\?/', $query, $indexDescription['sqlStrSearch']), $indexDescription['title']);
+            } else {
+                $this->options["searchRelation"] = $this->parseStarAndRemove($splittetSearchClause,
+                        (isset($indexDescription['exactOnly']) && ($indexDescription['exactOnly'] === true) ?
+                        SRUFromMysqlBase::EXACT :
+                        $this->operatorToStringSearchRelation($splittetSearchClause['operator'])
+                        ));
+                $this->options["query"] = $this->db->escape_string($splittetSearchClause['searchString']);
+                $this->options["xpath"] = $indexDescription['filter'];
+                $this->options["dbtable"] = $glossTable;
 
-            $searchResult = $this->getSearchResult($this->options, "Glossary for " . $this->options["query"], new glossaryComparatorFactory($this->options["query"]));
-        }
-        if ($searchResult !== '') {
+                $searchResult = $this->getSearchResult($this->options, "Glossary for " . $this->options["query"], new glossaryComparatorFactory($this->options["query"]));
+            }
             $ret = new Response();
             $ret->getHeaders()->addHeaders(array('content-type' => 'text/xml; charset=UTF-8'));
             $ret->setContent($searchResult);
-        } else {
-            $ret = $this->errorDiagnostics;
+        } catch (ESRUDiagnostics $ex) {
+            $ret = $ex->getSRUDiagnostics();
         }
         return $ret;
     }

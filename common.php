@@ -46,7 +46,8 @@ require_once __DIR__ . "/../utils-php/common.php";
 use clausvb\vlib\vlibTemplate,
     ACDH\FCSSRU\Http\Response,
     ACDH\FCSSRU\ErrorOrWarningException,
-    ACDH\FCSSRU\SRUDiagnostics;
+    ACDH\FCSSRU\SRUDiagnostics,
+    ACDH\FCSSRU\ESRUDiagnostics;
 
 use ACDH\FCSSRU\SRUWithFCSParameters;
 
@@ -1162,7 +1163,7 @@ protected function getSearchResult($sql, $description, $comparatorFactory = NULL
     } else {
         $errorMessage = $this->db->error;
         $this->errorDiagnostics = new SRUdiagnostics(1, "MySQL query error: $errorMessage; Query was: $sql");
-        return '';
+        throw new ESRUDiagnostics($this->errorDiagnostics);
     }
    }
 
@@ -1382,8 +1383,9 @@ protected function getScanResult($sqlstr, $entry = NULL, $searchRelation = SRUFr
         ErrorOrWarningException::$code_has_known_errors = false;
         return $ret;
     } else {
-        $this->errorDiagnostics = new SRUdiagnostics(1, 'MySQL query error: Query was: ' . $sqlstr);
-        return '';
+        $errorMessage = $this->db->error;
+        $this->errorDiagnostics = new SRUdiagnostics(1, "MySQL query error: $errorMessage; Query was: $sql");
+        throw new ESRUDiagnostics($this->errorDiagnostics);
     }
 }
 
@@ -1477,6 +1479,8 @@ private function fetchSortedArrayFromDB($sqlstr, $isNumber = false) {
                 return $ret;
             });
         }
+    } else {
+        throw new \ACDH\FCSSRU\ESRUDiagnostics(new SRUDiagnostics(1, $sqlstr.': '.$this->db->error));
     }
     return $sortedTerms;
 }

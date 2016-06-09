@@ -321,8 +321,12 @@ public function sampleTextQuery($query) {
                 return;
             }
         }
-    }   
-    $base->populateSearchResult($db, $sqlstr, $description);
+    }
+    try {
+        $base->populateSearchResult($db, $sqlstr, $description);
+    } catch (ESRUDiagnostics $ex) {
+        \ACDH\FCSSRU\diagnostics($ex->getSRUDiagnostics());
+    }
 }
 
 /**
@@ -390,7 +394,7 @@ function scan() {
        $sqlstr = "SELECT DISTINCT lemma, id, sid, COUNT(*) FROM $profileTable " .
               "WHERE lemma NOT LIKE '[%]' GROUP BY lemma";           
     } else if ($sru_fcs_params->scanClause === 'geo') {
-       $sqlstr = $base->sqlForXPath("$profileTable", "geo-",
+       $sqlstr = $base->scanSqlForXPath("$profileTable", "geo-",
                array("show-lemma" => true,
                      "distinct-values" => true,
            )); 
@@ -399,7 +403,11 @@ function scan() {
         return;
     }
     
-    $base->populateScanResult($db, $sqlstr);
+    try {        
+        $base->populateScanResult($db, $sqlstr);
+    } catch (ESRUDiagnostics $ex) {
+        \ACDH\FCSSRU\diagnostics($ex->getSRUDiagnostics());
+    }
 }
 if (!isset($runner)) {
     \ACDH\FCSSRU\getParamsAndSetUpHeader();

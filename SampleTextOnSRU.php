@@ -39,7 +39,8 @@
 namespace ACDH\FCSSRU\mysqlonsru;
 
 use ACDH\FCSSRU\mysqlonsru\SRUFromMysqlBase,
-    ACDH\FCSSRU\SRUDiagnostics;
+    ACDH\FCSSRU\SRUDiagnostics,
+    ACDH\FCSSRU\ESRUDiagnostics;
 
 /**
  * Load configuration and common functions
@@ -183,7 +184,11 @@ require_once __DIR__ . "/common.php";
         $options["exact"] = false;
         $sqlstr = $options;
     }
-    $base->populateSearchResult($db, $sqlstr, $description);
+    try {
+        $base->populateSearchResult($db, $sqlstr, $description);
+    } catch (ESRUDiagnostics $ex) {
+        \ACDH\FCSSRU\diagnostics($ex->getSRUDiagnostics());
+    }
 }
 
 /**
@@ -219,7 +224,7 @@ function scan() {
         ($sru_fcs_params->scanClause === '' ||
          $sru_fcs_params->scanClause === 'serverChoice' ||
          $sru_fcs_params->scanClause === 'cql.serverChoice'))) {
-       $sqlstr = $base->sqlForXPath($sampleTable, "TEI-text-body-div-head-", array(
+       $sqlstr = $base->scanSqlForXPath($sampleTable, "TEI-text-body-div-head-", array(
            "distinct-values" => true,
        ));
     } else if ($sru_fcs_params->scanClause === 'lingfeature' ||
@@ -227,7 +232,7 @@ function scan() {
         ($sru_fcs_params->scanClause === '' ||
          $sru_fcs_params->scanClause === 'serverChoice' ||
          $sru_fcs_params->scanClause === 'cql.serverChoice'))) {
-       $sqlstr = $base->sqlForXPath($sampleTable, "TEI-text-body-div-head-", array(
+       $sqlstr = $base->scanSqlForXPath($sampleTable, "TEI-text-body-div-head-", array(
            "distinct-values" => true,
        ));
          
@@ -238,7 +243,11 @@ function scan() {
         return;
     }
     
-    $base->populateScanResult($db, $sqlstr);
+    try {        
+        $base->populateScanResult($db, $sqlstr);
+    } catch (ESRUDiagnostics $ex) {
+        \ACDH\FCSSRU\diagnostics($ex->getSRUDiagnostics());
+    }
 }
 if (!isset($runner)) {
     \ACDH\FCSSRU\getParamsAndSetUpHeader();

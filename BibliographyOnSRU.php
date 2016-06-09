@@ -195,7 +195,12 @@ require_once __DIR__ . "/common.php";
        $options["xpath"] = "biblStruct-xml:id";
     }
 
-    $base->populateSearchResult($db, $options, "Bibliography for the region of " . $options["query"]);
+
+    try {
+        $base->populateSearchResult($db, $options, "Bibliography for the region of " . $options["query"]);
+    } catch (ESRUDiagnostics $ex) {
+        \ACDH\FCSSRU\diagnostics($ex->getSRUDiagnostics());
+    }
 }
 
  /**
@@ -229,7 +234,7 @@ function scan() {
         $sru_fcs_params->scanClause === 'id' ||
         $sru_fcs_params->scanClause === 'serverChoice' ||
         $sru_fcs_params->scanClause === 'cql.serverChoice') {
-       $sqlstr = $base->sqlForXPath("vicav_bibl_002", "biblStruct-xml:id",
+       $sqlstr = $base->scanSqlForXPath("vicav_bibl_002", "biblStruct-xml:id",
                array("filter" => "-",
                      "distinct-values" => true,
                      "xpath-filters" => array (
@@ -237,7 +242,7 @@ function scan() {
                         ),
                    ));     
     } else if ($sru_fcs_params->scanClause === 'vicavTaxonomy') {
-       $sqlstr = $base->sqlForXPath("vicav_bibl_002", "-index-term-vicavTaxonomy-",
+       $sqlstr = $base->scanSqlForXPath("vicav_bibl_002", "-index-term-vicavTaxonomy-",
                array("filter" => "-",
                      "distinct-values" => true,
                      "xpath-filters" => array (
@@ -245,7 +250,7 @@ function scan() {
                         ),
                    )); 
     } else if ($sru_fcs_params->scanClause === 'author') {
-       $sqlstr = $base->sqlForXPath("vicav_bibl_002", "-monogr-author-|-analytic-author-",
+       $sqlstr = $base->scanSqlForXPath("vicav_bibl_002", "-monogr-author-|-analytic-author-",
                array("filter" => "-",
                      "distinct-values" => true,
                      "xpath-filters" => array (
@@ -253,7 +258,7 @@ function scan() {
                         ),
                    )); 
     } else if ($sru_fcs_params->scanClause === 'imprintDate') {
-       $sqlstr = $base->sqlForXPath("vicav_bibl_002", "-imprint-date-",
+       $sqlstr = $base->scanSqlForXPath("vicav_bibl_002", "-imprint-date-",
                array("filter" => "-",
                      "distinct-values" => true,
                      "xpath-filters" => array (
@@ -265,7 +270,11 @@ function scan() {
         return;
     }
     
-    $base->populateScanResult($db, $sqlstr);
+    try {        
+        $base->populateScanResult($db, $sqlstr);
+    } catch (ESRUDiagnostics $ex) {
+        \ACDH\FCSSRU\diagnostics($ex->getSRUDiagnostics());
+    }
 }
 if (!isset($runner)) {
     \ACDH\FCSSRU\getParamsAndSetUpHeader();
