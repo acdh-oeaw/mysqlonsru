@@ -239,7 +239,7 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
             'scan' => 'true',
             'sort' => 'false',
             'exactOnly' => true,
-            'filter' => '/%bibl%Course%',
+            'filter' => '-%bibl%Course%',
         ));
 
         array_push($this->indices, array(
