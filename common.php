@@ -1273,13 +1273,13 @@ protected function getScanResult($sqlstr, $entry = NULL, $searchRelation = SRUFr
 #            return $this->fetchSortedArrayFromDB($sqlstr, $isNumber);            
 #        }, $chacheScanResultForSeconds);$this->fetchSortedArrayFromDB($sqlstr, $isNumber);
 #        4.0.10 -> PHP 5.x
-//        $sortedTerms = apc_fetch($cache_key);
-//        if ($sortedTerms === FALSE) {
+        $sortedTerms = apc_fetch($cache_key);
+        if ($sortedTerms === FALSE) {
             $sortedTerms = $this->fetchSortedArrayFromDB($sqlstr, $isNumber);
-//            apc_store($cache_key, $sortedTerms, $chacheScanResultForSeconds);
-//        } else {
-//            $sqlstr = 'Cached: '.$sqlstr;
-//        }
+            apc_store($cache_key, $sortedTerms, $chacheScanResultForSeconds);
+        } else {
+            $sqlstr = 'Cached: '.$sqlstr;
+        }
     } else {
         $sortedTerms = $this->fetchSortedArrayFromDB($sqlstr, $isNumber);
     }
@@ -1343,11 +1343,16 @@ protected function getScanResult($sqlstr, $entry = NULL, $searchRelation = SRUFr
                 $startPosition++;
             }
         }
-        $position = ($startPosition - $this->params->responsePosition) + 1;
+        $skipPositions = 1 - $this->params->responsePosition;
+        $position = ($startPosition - min($this->params->responsePosition, $this->params->maximumTerms)) + 1;            
         $position = $position <= 0 ? 1 : $position;
+        while ($skipPositions > 0) {
+            $position++;
+            $skipPositions--;
+        }
         $i = $position - 1;
         $shortList = array();
-        $endPosition = min($position + $maximumTerms - 1, count($sortedTerms));
+        $endPosition = min($position + $maximumTerms, count($sortedTerms)) - 1;
         while ($i < $endPosition){
             $sortedTerms[$i]['value'] = htmlentities($sortedTerms[$i]['value'], ENT_XML1);
             if (isset($sortedTerms[$i]['displayTerm'])) {
@@ -1355,10 +1360,10 @@ protected function getScanResult($sqlstr, $entry = NULL, $searchRelation = SRUFr
             } 
             array_push($shortList, $sortedTerms[$i]);
             if ($this->ignorePosition) {
-               $shortList[$i - $position + 1]["position"] = -1; 
+               $shortList[$i]["position"] = -1; 
             } else {
-                if (!isset($shortList[$i - $position + 1]["position"])) {
-                    $shortList[$i - $position + 1]["position"] = $i + 1;            
+                if (!isset($shortList[$i]["position"])) {
+                    $shortList[$i]["position"] = $i + 1;
                 }
             }
             $i++;
@@ -1372,8 +1377,7 @@ protected function getScanResult($sqlstr, $entry = NULL, $searchRelation = SRUFr
         $tmpl->setVar('count', $numberOfRecords);
         $tmpl->setVar('transformedQuery', str_replace('<', '&lt;', $sqlstr));
         $tmpl->setVar('clause', $this->params->scanClause);
-        $responsePosition = 0;
-        $tmpl->setVar('responsePosition', $responsePosition);
+        $tmpl->setVar('responsePosition', $this->params->responsePosition);
         $tmpl->setVar('maximumTerms', $maximumTerms);
         $tmpl->setVar('xcontext', $this->params->xcontext);
         $tmpl->setVar('xfilter', $this->params->xfilter);
