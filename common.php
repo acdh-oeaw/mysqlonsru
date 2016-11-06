@@ -1360,10 +1360,10 @@ protected function getScanResult($sqlstr, $entry = NULL, $searchRelation = SRUFr
             } 
             array_push($shortList, $sortedTerms[$i]);
             if ($this->ignorePosition) {
-               $shortList[$i]["position"] = -1; 
+               $shortList[count($shortList) - 1]["position"] = -1; 
             } else {
-                if (!isset($shortList[$i]["position"])) {
-                    $shortList[$i]["position"] = $i + 1;
+                if (!isset($shortList[count($shortList) - 1]["position"])) {
+                    $shortList[count($shortList) - 1]["position"] = $i + 1;
                 }
             }
             $i++;
