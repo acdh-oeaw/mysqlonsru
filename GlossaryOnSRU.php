@@ -216,10 +216,25 @@ class GlossaryOnSRU extends SRUFromMysqlBase {
             'search' => 'true',
             'scan' => 'true',
             'sort' => 'false',
-            'filter' => '',
-            'xpath-filters' => array(
-                '//gramGrp/gram[@type="pos"]' => null
-            )
+            'filter' => '/%/gramGrp/gram[@type=\"pos\"]%',
+        ));
+        
+        array_push($this->indices, array(
+            'title' => 'POS Subcategory',
+            'name' => 'subc',
+            'search' => 'true',
+            'scan' => 'true',
+            'sort' => 'false',
+            'filter' => '/%/gramGrp/gram[@type=\"subc\"]%',
+        ));
+        
+        array_push($this->indices, array(
+            'title' => 'Root',
+            'name' => 'root',
+            'search' => 'true',
+            'scan' => 'true',
+            'sort' => 'false',
+            'filter' => '/%/gramGrp/gram[@type=\"root\"]%',
         ));
         
         array_push($this->indices, array(
