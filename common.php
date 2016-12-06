@@ -1344,30 +1344,28 @@ protected function getScanResult($sqlstr, $entry = NULL, $searchRelation = SRUFr
                 $startPosition++;
             }
         }
-        $skipPositions = 1 - $this->params->responsePosition;
-        $position = ($startPosition - min($this->params->responsePosition, $this->params->maximumTerms)) + 1;            
-        $position = $position <= 0 ? 1 : $position;
-        while ($skipPositions > 0) {
-            $position++;
-            $skipPositions--;
-        }
-        $i = $position - 1;
+        // the parameter is 1 based!
+        $responsePosition = $this->params->responsePosition - 1;
+        $skipPositions = $responsePosition < 0 ? -$responsePosition : 0;
+        $responsePosition = $responsePosition < 0 ? 0 : $responsePosition;
+        $position = $startPosition - $responsePosition + $skipPositions;
+        $position = $position < 0 ? 0 : $position;
         $shortList = array();
-        $endPosition = min($position + $maximumTerms, count($sortedTerms)) - 1;
-        while ($i <= $endPosition){
-            $sortedTerms[$i]['value'] = htmlentities($sortedTerms[$i]['value'], ENT_XML1);
-            if (isset($sortedTerms[$i]['displayTerm'])) {
-                $sortedTerms[$i]['displayTerm'] = htmlentities($sortedTerms[$i]['displayTerm'], ENT_XML1);
+        $endPosition = min($position + $maximumTerms, count($sortedTerms) - 1);
+        while ($position < $endPosition){
+            $sortedTerms[$position]['value'] = htmlentities($sortedTerms[$position]['value'], ENT_XML1);
+            if (isset($sortedTerms[$position]['displayTerm'])) {
+                $sortedTerms[$position]['displayTerm'] = htmlentities($sortedTerms[$position]['displayTerm'], ENT_XML1);
             } 
-            array_push($shortList, $sortedTerms[$i]);
+            array_push($shortList, $sortedTerms[$position]);
             if ($this->ignorePosition) {
                $shortList[count($shortList) - 1]["position"] = -1; 
             } else {
                 if (!isset($shortList[count($shortList) - 1]["position"])) {
-                    $shortList[count($shortList) - 1]["position"] = $i + 1;
+                    $shortList[count($shortList) - 1]["position"] = $position + 1;
                 }
             }
-            $i++;
+            $position++;
         }
         
         if (count($shortList) > 0) {
