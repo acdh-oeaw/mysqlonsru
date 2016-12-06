@@ -804,7 +804,7 @@ protected function generateXPathPrefilter($table, &$options) {
     $conditions = rtrim($conditions, 'AND ');
     // no XPaths?
     $this->xPathPrefilter = $extractValues === '' ? $table.'_ndx':
-                "(SELECT base.id, $extractValues" . 
+                "(SELECT base.id, $extractValues, -1 AS weight" . 
                 " FROM $table AS base GROUP BY base.id HAVING $conditions)";
     $options["xpath-filters"] = $filters;
     return $this->xPathPrefilter;
