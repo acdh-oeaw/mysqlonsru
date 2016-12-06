@@ -1274,7 +1274,8 @@ protected function getScanResult($sqlstr, $entry = NULL, $searchRelation = SRUFr
 #        }, $chacheScanResultForSeconds);$this->fetchSortedArrayFromDB($sqlstr, $isNumber);
 #        4.0.10 -> PHP 5.x
         $sortedTerms = apc_fetch($cache_key);
-        if ($sortedTerms === FALSE) {
+        if ($sortedTerms === FALSE ||
+            $this->params->xmode === 'refresh') {
             $sortedTerms = $this->fetchSortedArrayFromDB($sqlstr, $isNumber);
             apc_store($cache_key, $sortedTerms, $chacheScanResultForSeconds);
         } else {
