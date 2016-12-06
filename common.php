@@ -1353,7 +1353,7 @@ protected function getScanResult($sqlstr, $entry = NULL, $searchRelation = SRUFr
         $i = $position - 1;
         $shortList = array();
         $endPosition = min($position + $maximumTerms, count($sortedTerms)) - 1;
-        while ($i < $endPosition){
+        while ($i <= $endPosition){
             $sortedTerms[$i]['value'] = htmlentities($sortedTerms[$i]['value'], ENT_XML1);
             if (isset($sortedTerms[$i]['displayTerm'])) {
                 $sortedTerms[$i]['displayTerm'] = htmlentities($sortedTerms[$i]['displayTerm'], ENT_XML1);
