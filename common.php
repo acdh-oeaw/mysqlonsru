@@ -676,7 +676,7 @@ protected function genereatePrefilterSql($table, &$options) {
     }
     $innerSql = "(SELECT inner.id, inner.txt FROM $indexTable AS `inner` WHERE ". 
                    $whereClause .
-                    "AND inner.xpath LIKE '%$xpathToSearchIn')";
+                    "AND inner.xpath LIKE '%$xpathToSearchIn' GROUP BY inner.id)";
     
     if ($this->ndxHasWeight) {
         $tab_weight = ", tab.weight";
