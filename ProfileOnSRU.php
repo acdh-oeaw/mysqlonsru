@@ -93,7 +93,7 @@ public function sampleTextQuery($query) {
     try {
         $doc->loadXML($xmlcode);    
     } catch (\Exception $exc) {
-        array_push($this->errors_array, $exc);
+        array_push($this->errors_array, new \Exception($exc->getMessage() . " XML: " . substr($xmlcode, 1, 240). "...", $exc->getCode(), $exc));
     }
 
     $xpath = new \DOMXpath($doc);
