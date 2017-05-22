@@ -92,7 +92,7 @@ public function sampleTextQuery($query) {
     
     try {
         $doc->loadXML($xmlcode);    
-    } catch (Exception $exc) {
+    } catch (\Exception $exc) {
         array_push($this->errors_array, $exc);
     }
 

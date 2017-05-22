@@ -1005,7 +1005,7 @@ protected function getWellKnownTEIPartAsXML ($table, $id) {
  */
 protected function getTEIDataAsXMLQueryObject($xmlText) {
     $trimmedXMLText = trim($xmlText);
-    if ($trimmedXMLText[0] !== '<') {
+    if (empty($trimmedXMLText) || $trimmedXMLText[0] !== '<') {
         return null;
     }
     $xmlDoc = new \DOMDocument();
